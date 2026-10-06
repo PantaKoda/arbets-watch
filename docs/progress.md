@@ -175,4 +175,4 @@ Not yet verified: download of a real GitHub release asset (needs a published rel
 
 ## Next step
 
-Run the manual M6 checks, merge the PR stack into `main` in order, then tag `v0.1.0` on a reviewed `main` commit to publish the first release (AGENTS.md section 11). A later `v0.1.1` exercises the in-app update against GitHub end to end.
+Publish `v0.1.0` (tag on `main`, Release workflow), then run the manual M6 checks (sleep/resume, DPI change, tray menu). A later `v0.1.1` exercises the in-app update against GitHub end to end.
