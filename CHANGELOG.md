@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.1.0 — unreleased
+## [0.1.0] - Unreleased
 
 First version: a Windows tray app that keeps a local copy of the ads currently published on Platsbanken and shows them filtered by place and worktime.
 
@@ -9,4 +9,5 @@ First version: a Windows tray app that keeps a local copy of the ads currently p
 - Newly detected ads are marked and glow once; opening an ad on Platsbanken marks it read; "Mark these as read" clears the current results only.
 - Survives restarts, sleep, offline periods and failed downloads without losing the list or read state; long gaps and a weekly reconciliation use a fresh snapshot.
 - Tray icon (Show, Refresh, Pause, Settings, Quit), single instance, remembered window position, light/dark theme, optional transparency and always-on-top.
+- In-app updates: a daily check of this repository's GitHub releases; an UPDATE button shows what changed and installs the new version after checking its published SHA-256, keeping your saved ads, read state and settings. The previous version stays next to the app folder for a manual rollback.
 - Portable self-contained ZIP for Windows x64; no installer, not code-signed.

@@ -1,0 +1,63 @@
+name: Release
+
+# Publishing a release is a maintainer action: push a tag "vX.Y.Z" matching <Version> in Directory.Build.props,
+# with a "## [X.Y.Z]" section in CHANGELOG.md. This builds the portable Windows zip with the same script
+# maintainers use (tests included) and creates the GitHub release that ArbetsWatch's in-app updates read.
+# Ordinary PR checks live in ci.yml and never get release permissions.
+on:
+  push:
+    tags: ['v*.*.*']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          global-json-file: global.json
+
+      - name: Check the tag matches the version and is on main
+        shell: pwsh
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          $version = (dotnet msbuild src/ArbetsWatch.Desktop/ArbetsWatch.Desktop.csproj -getProperty:Version).Trim()
+          if ("v$version" -ne $env:TAG) { throw "Tag $env:TAG doesn't match Version $version in Directory.Build.props." }
+          git fetch --no-tags origin main
+          git merge-base --is-ancestor HEAD origin/main
+          if ($LASTEXITCODE -ne 0) { throw "Tag $env:TAG is not on main." }
+          "VERSION=$version" >> $env:GITHUB_ENV
+
+      - name: Release notes from CHANGELOG.md
+        shell: pwsh
+        run: pwsh scripts/release-notes.ps1 -Version $env:VERSION -OutFile release-notes.md
+
+      - name: Build, test and package
+        shell: pwsh
+        run: pwsh scripts/publish-windows.ps1
+
+      - name: Create the GitHub release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          gh release create $env:TAG `
+            "artifacts/release/ArbetsWatch-$env:VERSION-win-x64.zip" `
+            "artifacts/release/ArbetsWatch-$env:VERSION-win-x64.zip.sha256" `
+            --title "ArbetsWatch $env:VERSION" --notes-file release-notes.md --verify-tag

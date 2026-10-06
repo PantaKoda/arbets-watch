@@ -16,6 +16,23 @@ public sealed class BrowserLauncher(ILogger<BrowserLauncher> logger)
             return false;
         }
 
+        return Launch(url);
+    }
+
+    /// <summary>Opens a page on github.com (the release page in the update window).</summary>
+    public bool OpenGitHub(Uri url)
+    {
+        if (url.Scheme != Uri.UriSchemeHttps || !string.Equals(url.IdnHost, "github.com", StringComparison.OrdinalIgnoreCase) || !string.IsNullOrEmpty(url.UserInfo))
+        {
+            logger.LogWarning("Refused to open a link outside github.com");
+            return false;
+        }
+
+        return Launch(url);
+    }
+
+    private bool Launch(Uri url)
+    {
         try
         {
             // AbsoluteUri is percent-encoded, so it cannot inject shell arguments.

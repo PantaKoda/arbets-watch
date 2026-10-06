@@ -45,6 +45,14 @@
                 </Border>
               </Grid>
               <StackPanel Grid.Column="1" Orientation="Horizontal">
+                <!-- A newer release exists: a small accent pill opens the update window. -->
+                <Button Classes="update" Command="{Binding OpenUpdateCommand}" IsVisible="{Binding UpdateAvailable}"
+                        ToolTip.Tip="{Binding UpdateTooltip}" AutomationProperties.Name="Update available">
+                  <StackPanel Orientation="Horizontal" Spacing="4">
+                    <PathIcon Data="{StaticResource IconUpdate}" Width="11" Height="11" />
+                    <TextBlock Text="UPDATE" FontSize="10" FontWeight="SemiBold" LetterSpacing="1.2" VerticalAlignment="Center" />
+                  </StackPanel>
+                </Button>
                 <Button Name="RefreshButton" Classes="icon" Classes.spinning="{Binding ShowActivity}" Command="{Binding RefreshCommand}"
                         ToolTip.Tip="Refresh (F5)" AutomationProperties.Name="Refresh">
                   <PathIcon Data="{StaticResource IconRefresh}" />
@@ -83,6 +91,17 @@
             <ToggleButton Grid.Column="3" Content="Ej angiven" IsChecked="{Binding NotSpecified}"
                           ToolTip.Tip="Ads that do not state full-time or part-time" AutomationProperties.Name="Worktime not specified" />
           </Grid>
+
+          <!-- After an update (or a failed one): said once, dismissible. -->
+          <Border DockPanel.Dock="Bottom" IsVisible="{Binding HasStartupNotice}" Background="{DynamicResource PanelBrush}"
+                  BorderBrush="{DynamicResource HudFrameBrush}" BorderThickness="1" CornerRadius="8" Margin="10,0,10,4" Padding="10,4,4,4">
+            <Grid ColumnDefinitions="*,Auto">
+              <TextBlock Text="{Binding StartupNotice}" TextWrapping="Wrap" VerticalAlignment="Center" FontSize="12" />
+              <Button Grid.Column="1" Classes="link" Command="{Binding DismissStartupNoticeCommand}" AutomationProperties.Name="Dismiss">
+                <TextBlock Text="OK" />
+              </Button>
+            </Grid>
+          </Border>
 
           <!-- Footer: counts, mark read, notice, resize grip. -->
           <Grid DockPanel.Dock="Bottom" ColumnDefinitions="*,Auto,Auto" Margin="14,2,4,4" MinHeight="22">
@@ -292,7 +311,11 @@
                     </StackPanel>
                     <StackPanel Spacing="4">
                       <TextBlock Classes="hud" Text="ABOUT" />
-                      <TextBlock Classes="secondary" Text="{Binding VersionText}" />
+                      <TextBlock Classes="secondary" Text="{Binding UpdateInfoText}" TextWrapping="Wrap" />
+                      <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Button Content="Check for updates" Command="{Binding CheckForUpdatesCommand}" />
+                        <Button Content="What is new" Command="{Binding OpenUpdateCommand}" IsVisible="{Binding UpdateAvailable}" />
+                      </StackPanel>
                       <TextBlock Classes="secondary" Text="{Binding TaxonomyText}" TextWrapping="Wrap" />
                       <TextBlock Classes="secondary" TextWrapping="Wrap"
                                  Text="Ads come from Arbetsförmedlingen's open JobTech APIs. &quot;New&quot; means newly found by this app while it was running." />
