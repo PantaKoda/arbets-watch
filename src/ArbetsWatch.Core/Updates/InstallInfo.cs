@@ -39,6 +39,8 @@ public sealed record InstallInfo(AppVersion Version, string InstallDirectory, bo
             UpdateFailures.CouldNotMove => "ArbetsWatch's folder couldn't be moved aside, probably because a file in it was in use",
             UpdateFailures.CopyFailed => "copying the new version failed, so the previous one was put back",
             UpdateFailures.RestoreFailed => "copying the new version failed and the previous version is running from its backup folder",
+            UpdateFailures.Timeout => "ArbetsWatch didn't quit in time, so the update wasn't applied",
+            UpdateFailures.StartFailed => "the new version couldn't be started, so the previous one was put back",
             _ => "something went wrong",
         };
         return $"The last update couldn't be applied: {reason}. You're still on version {version}. Details are in logs\\update.log in the data folder.";
@@ -96,6 +98,8 @@ public static class UpdateFailures
     public const string CouldNotMove = "move";
     public const string CopyFailed = "copy";
     public const string RestoreFailed = "restore";
+    public const string Timeout = "timeout";
+    public const string StartFailed = "start";
 }
 
 /// <summary>Starts a process. Abstracted so the update hand-over can be tested without starting anything.</summary>

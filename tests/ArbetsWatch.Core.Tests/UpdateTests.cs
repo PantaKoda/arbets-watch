@@ -237,6 +237,14 @@ public sealed class UpdateServiceTests : IDisposable
     }
 
     [Fact]
+    public void Dispose_can_be_called_twice()
+    {
+        var service = Service(new FakeSource(ReleaseZip("0.1.1")));
+        service.Dispose();
+        service.Dispose();
+    }
+
+    [Fact]
     public async Task Up_to_date_when_nothing_newer()
     {
         using var service = Service(new FakeSource(ReleaseZip("0.1.0")) { Version = "0.1.0" });
@@ -343,11 +351,53 @@ public sealed class UpdateApplierTests : IDisposable
     }
 
     [Fact]
-    public void Nothing_changes_when_the_old_app_does_not_quit()
+    public void When_the_old_app_does_not_quit_nothing_changes_and_the_installed_version_is_started()
     {
         Assert.Equal(2, Applier(exited: false).Apply(Staged, Target, 1234, "0.1.0"));
         Assert.Equal("old", File.ReadAllText(Path.Combine(Target, "ArbetsWatch.exe")));
-        Assert.Empty(_launcher.Started);
+        var (exe, args) = Assert.Single(_launcher.Started);
+        Assert.Equal(Path.Combine(Target, "ArbetsWatch.exe"), exe);
+        Assert.Equal([UpdateArguments.UpdateFailed, UpdateFailures.Timeout], args);
+    }
+
+    [Fact]
+    public void When_the_new_version_cannot_start_the_previous_one_is_put_back()
+    {
+        var launcher = new RecordingLauncher { Fail = exe => File.ReadAllText(exe) == "new" };
+        var code = new UpdateApplier((_, _) => true, launcher, _log.Add, TimeSpan.FromMilliseconds(10)).Apply(Staged, Target, 1234, "0.1.0");
+
+        Assert.Equal(6, code);
+        Assert.Equal("old", File.ReadAllText(Path.Combine(Target, "ArbetsWatch.exe")));
+        Assert.False(Directory.Exists(Target + ".previous"));
+        Assert.Equal([UpdateArguments.UpdateFailed, UpdateFailures.StartFailed], launcher.Started[^1].Arguments);
+    }
+
+    [Fact]
+    public void Copy_failure_restores_the_previous_version()
+    {
+        Assert.SkipUnless(OperatingSystem.IsWindows(), "Relies on Windows file sharing locks.");
+        using (new FileStream(Path.Combine(Staged, "sub", "new.dll"), FileMode.Open, FileAccess.Read, FileShare.None))
+        {
+            Assert.Equal(4, Applier(exited: true).Apply(Staged, Target, 1234, "0.1.0"));
+        }
+
+        Assert.Equal("old", File.ReadAllText(Path.Combine(Target, "ArbetsWatch.exe")));
+        Assert.True(File.Exists(Path.Combine(Target, "old-only.dll")));
+        Assert.False(Directory.Exists(Target + ".previous"));
+        Assert.Equal([UpdateArguments.UpdateFailed, UpdateFailures.CopyFailed], Assert.Single(_launcher.Started).Arguments);
+    }
+
+    [Fact]
+    public void Locked_install_folder_is_left_untouched()
+    {
+        Assert.SkipUnless(OperatingSystem.IsWindows(), "Relies on Windows file sharing locks.");
+        using (new FileStream(Path.Combine(Target, "old-only.dll"), FileMode.Open, FileAccess.Read, FileShare.None))
+        {
+            Assert.Equal(3, Applier(exited: true).Apply(Staged, Target, 1234, "0.1.0"));
+        }
+
+        Assert.Equal("old", File.ReadAllText(Path.Combine(Target, "ArbetsWatch.exe")));
+        Assert.Equal([UpdateArguments.UpdateFailed, UpdateFailures.CouldNotMove], Assert.Single(_launcher.Started).Arguments);
     }
 
     [Fact]
@@ -391,7 +441,7 @@ public sealed class UpdateApplierTests : IDisposable
         }
     }
 
-    private UpdateApplier Applier(bool exited) => new((_, _) => exited, _launcher, _log.Add);
+    private UpdateApplier Applier(bool exited) => new((_, _) => exited, _launcher, _log.Add, TimeSpan.FromMilliseconds(10));
 
     private static void Write(string directory, string relative, string content)
     {
@@ -405,9 +455,12 @@ internal sealed class RecordingLauncher : IProcessLauncher
 {
     public List<(string Executable, IReadOnlyList<string> Arguments)> Started { get; } = [];
 
+    /// <summary>When it returns true for an executable, starting it fails.</summary>
+    public Func<string, bool> Fail { get; init; } = _ => false;
+
     public bool Start(string executable, IReadOnlyList<string> arguments)
     {
         Started.Add((executable, [.. arguments]));
-        return true;
+        return !Fail(executable);
     }
 }

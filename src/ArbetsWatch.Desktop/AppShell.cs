@@ -251,7 +251,7 @@ public sealed class AppShell : IShell, IDisposable
 
     public void Dispose()
     {
-        _updates.Dispose();
+        // The update service is owned (and disposed) by Program, which created it.
         _tray.Dispose();
         _viewModel?.Dispose();
     }

@@ -169,6 +169,8 @@ dotnet test ArbetsWatch.slnx → 154 passed (36 new: versions, policy, checksum 
 - Real hand-over with release zips built by the script: 0.1.0 installed in a scratch `Programs\ArbetsWatch` and running; 0.1.1 staged in the data folder's `updates`; updater started with `--apply-update`; 0.1.0 quit → `Programs\ArbetsWatch` now 0.1.1, `ArbetsWatch.previous` holds 0.1.0, `logs\update.log` records it, 0.1.1 started from the install folder and showed "Updated to 0.1.1 from 0.1.0.", with the saved list intact.
 - Check for updates from the installed 0.1.0 against the real repository: "Version 0.1.0 is the latest" (no releases yet).
 
+Review fixes (PR #8): `UpdateService.Dispose` is idempotent and owned by `Program` only (every quit used to end in `ObjectDisposedException`); the release workflow is split so restore/build/tests run with a read-only token and no persisted credentials, and only a separate job with `contents: write` publishes; the hand-over never leaves nothing running (timeout restarts the installed version, a new version that can't start is rolled back), and restore steps retry; rollback paths are tested with real Windows file locks; the install precondition is checked after taking the gate (no leak), a busy gate says so, and staging is also cleaned after a failed hand-over; release notes are written outside the tree and the publish script refuses a dirty tree unless `-AllowDirty`.
+
 Not yet verified: download of a real GitHub release asset (needs a published release) and the release workflow itself (runs on the first tag).
 
 ## Next step

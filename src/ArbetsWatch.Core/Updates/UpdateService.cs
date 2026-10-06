@@ -70,6 +70,7 @@ public sealed class UpdateService : IDisposable
     private readonly CancellationTokenSource _stop = new();
     private readonly Lock _state = new();
     private CancellationTokenSource? _install;
+    private int _disposed;
 
     public UpdateService(
         IReleaseSource source,
@@ -201,46 +202,53 @@ public sealed class UpdateService : IDisposable
     /// </summary>
     public async Task InstallAsync(CancellationToken cancellationToken = default)
     {
-        if (CannotInstallReason is { } reason)
-        {
-            Set(UpdateStage.InstallFailed, reason);
-            return;
-        }
-
         if (!await _gate.WaitAsync(0, CancellationToken.None).ConfigureAwait(false))
         {
+            // A check (or another install) is running; say so instead of ignoring the click.
+            Set(Stage, "An update check is running. Try again in a moment.");
             return;
         }
 
-        // Cancelled by the user (Cancel), by quitting, or by the caller.
-        using var install = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _stop.Token);
-        lock (_state)
-        {
-            _install = install;
-        }
-
-        var token = install.Token;
-        var release = Latest!;
-        var zipName = release.WindowsZip!.Name;
+        ReleaseInfo? release = null;
         var root = StagingRoot;
+        CancellationTokenSource? install = null;
         try
         {
+            // Checked after taking the gate, so the release list can't change underneath.
+            if (CannotInstallReason is { } reason)
+            {
+                Set(UpdateStage.InstallFailed, reason);
+                return;
+            }
+
+            release = Latest!;
+            var zipAsset = release.WindowsZip!;
+            var checksumAsset = release.WindowsChecksum!;
+
+            // Cancelled by the user (Cancel), by quitting, or by the caller.
+            install = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _stop.Token);
+            lock (_state)
+            {
+                _install = install;
+            }
+
+            var token = install.Token;
             Progress = 0;
             Set(UpdateStage.Downloading, null);
             DeleteQuietly(root);
             Directory.CreateDirectory(root);
 
             using var checksumBuffer = new MemoryStream();
-            await _source.DownloadAsync(release.WindowsChecksum!.DownloadUrl, checksumBuffer, 4096, null, token).ConfigureAwait(false);
-            var expected = UpdatePolicy.ParseChecksum(Encoding.UTF8.GetString(checksumBuffer.ToArray()), zipName)
+            await _source.DownloadAsync(checksumAsset.DownloadUrl, checksumBuffer, 4096, null, token).ConfigureAwait(false);
+            var expected = UpdatePolicy.ParseChecksum(Encoding.UTF8.GetString(checksumBuffer.ToArray()), zipAsset.Name)
                 ?? throw new InvalidDataException("the release's checksum file is not in the expected format");
 
-            var zipPath = Path.Combine(root, zipName);
+            var zipPath = Path.Combine(root, zipAsset.Name);
             var progress = new ThrottledProgress(this);
             var file = File.Create(zipPath);
             await using (file.ConfigureAwait(false))
             {
-                await _source.DownloadAsync(release.WindowsZip.DownloadUrl, file, MaxDownloadBytes, progress, token).ConfigureAwait(false);
+                await _source.DownloadAsync(zipAsset.DownloadUrl, file, MaxDownloadBytes, progress, token).ConfigureAwait(false);
             }
 
             Set(UpdateStage.Verifying, null);
@@ -285,15 +293,15 @@ public sealed class UpdateService : IDisposable
             Set(UpdateStage.Restarting, null);
             ExitRequested?.Invoke(this, EventArgs.Empty);
         }
-        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        catch (OperationCanceledException) when (install?.IsCancellationRequested == true)
         {
-            _logger.LogInformation("Installing update {Version} was cancelled", release.Version);
+            _logger.LogInformation("Installing update {Version} was cancelled", release?.Version);
             DeleteQuietly(root);
             Set(UpdateStage.InstallFailed, "The update was cancelled. Nothing was changed.");
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Installing update {Version} failed", release.Version);
+            _logger.LogWarning(ex, "Installing update {Version} failed", release?.Version);
             DeleteQuietly(root);
             Set(UpdateStage.InstallFailed, $"Couldn't install the update ({ex.Message}). Nothing was changed.");
         }
@@ -304,6 +312,7 @@ public sealed class UpdateService : IDisposable
                 _install = null;
             }
 
+            install?.Dispose();
             _gate.Release();
         }
     }
@@ -320,8 +329,14 @@ public sealed class UpdateService : IDisposable
         }
     }
 
+    /// <summary>Stops the daily check. Safe to call more than once.</summary>
     public void Dispose()
     {
+        if (Interlocked.Exchange(ref _disposed, 1) != 0)
+        {
+            return;
+        }
+
         _stop.Cancel();
         _stop.Dispose();
     }
@@ -331,9 +346,9 @@ public sealed class UpdateService : IDisposable
         try
         {
             await Task.Delay(_options.FirstCheckDelay, _time, cancellationToken).ConfigureAwait(false);
-            if (Install.UpdatedFrom is not null && Stage is UpdateStage.Idle)
+            if ((Install.UpdatedFrom is not null || Install.UpdateFailed is not null) && Stage is UpdateStage.Idle)
             {
-                DeleteQuietly(StagingRoot); // the hand-over copy has finished by now
+                DeleteQuietly(StagingRoot); // the hand-over copy has finished by now, successful or not
             }
 
             while (!cancellationToken.IsCancellationRequested)

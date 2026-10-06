@@ -6,14 +6,16 @@
 # entries are sorted and stamped with the commit time. The folder carries release.json, the marker that lets a
 # copy extracted from a release replace itself with a newer release (in-app updates, see docs/updates.md).
 #
-#   pwsh scripts/publish-windows.ps1              # restore, test, publish, zip
+#   pwsh scripts/publish-windows.ps1              # restore, test, publish, zip (fails on uncommitted changes)
 #   pwsh scripts/publish-windows.ps1 -SkipTests   # when the tests already ran for this commit
+#   pwsh scripts/publish-windows.ps1 -AllowDirty  # local experiments only; never release such a build
 [CmdletBinding()]
 param(
     [switch]$SkipTests,
     [string]$Output = 'artifacts/release',
     # Overrides <Version> from Directory.Build.props (local update testing only; releases use the props value).
-    [string]$Version
+    [string]$Version,
+    [switch]$AllowDirty
 )
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
@@ -33,7 +35,11 @@ $commit = (git rev-parse HEAD).Trim()
 # Untracked files count too: the SDK globs would compile a stray *.cs or *.axaml under src/ into the release.
 $dirty = [bool](git status --porcelain)
 if ($dirty) {
-    Write-Warning 'The working tree has uncommitted or untracked files: this build is not reproducible from the commit and must not be released.'
+    if (-not $AllowDirty) {
+        git status --porcelain
+        throw 'The working tree has uncommitted or untracked files, so this build would not match its commit. Commit or stash them, or pass -AllowDirty for a local experiment.'
+    }
+    Write-Warning 'Dirty working tree (-AllowDirty): this build is not reproducible from the commit and must not be released.'
 }
 $stamp = [DateTimeOffset]::FromUnixTimeSeconds([long](git log -1 --format=%ct HEAD)).UtcDateTime
 

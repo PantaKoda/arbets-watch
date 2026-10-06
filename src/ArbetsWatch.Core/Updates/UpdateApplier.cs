@@ -10,8 +10,10 @@ namespace ArbetsWatch.Core.Updates;
 /// without a working app. The previous version stays next to the install folder for a manual rollback until
 /// the next update replaces it.
 /// </summary>
-public sealed class UpdateApplier(Func<int, TimeSpan, bool> waitForExit, IProcessLauncher launcher, Action<string> log)
+public sealed class UpdateApplier(Func<int, TimeSpan, bool> waitForExit, IProcessLauncher launcher, Action<string> log, TimeSpan? retryDelay = null)
 {
+    private readonly TimeSpan _retryDelay = retryDelay ?? TimeSpan.FromMilliseconds(500);
+
     public static readonly TimeSpan ExitTimeout = TimeSpan.FromSeconds(60);
 
     /// <summary>Handles <c>--apply-update</c> before anything else starts. Returns false for a normal launch.</summary>
@@ -70,7 +72,10 @@ public sealed class UpdateApplier(Func<int, TimeSpan, bool> waitForExit, IProces
 
         if (!waitForExit(waitForPid, ExitTimeout))
         {
+            // Start the installed version anyway: if the old process is still running, single-instance hands
+            // over to it; if it quits later, the user isn't left without the app.
             log($"ArbetsWatch (process {waitForPid}) didn't quit; the update was not applied.");
+            Restart(target, UpdateFailures.Timeout);
             return 2;
         }
 
@@ -97,29 +102,40 @@ public sealed class UpdateApplier(Func<int, TimeSpan, bool> waitForExit, IProces
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             log($"Copying the new version failed ({ex.Message}); restoring the previous version.");
-            try
-            {
-                if (Directory.Exists(target))
-                {
-                    Directory.Delete(target, recursive: true);
-                }
-
-                Directory.Move(backup, target);
-            }
-            catch (Exception restore) when (restore is IOException or UnauthorizedAccessException)
-            {
-                log($"Restoring failed too ({restore.Message}). The previous version is in '{backup}'.");
-                Restart(backup, UpdateFailures.RestoreFailed);
-                return 5;
-            }
-
-            Restart(target, UpdateFailures.CopyFailed);
-            return 4;
+            return RestorePrevious(target, backup, UpdateFailures.CopyFailed) ? 4 : 5;
         }
 
-        log($"Updated '{target}' from {fromVersion}; the previous version is in '{backup}'.");
-        launcher.Start(Path.Combine(target, InstallInfo.ExecutableName), [UpdateArguments.UpdatedFrom, fromVersion]);
-        return 0;
+        if (launcher.Start(Path.Combine(target, InstallInfo.ExecutableName), [UpdateArguments.UpdatedFrom, fromVersion]))
+        {
+            log($"Updated '{target}' from {fromVersion}; the previous version is in '{backup}'.");
+            return 0;
+        }
+
+        log($"The new version in '{target}' couldn't be started; restoring the previous version.");
+        return RestorePrevious(target, backup, UpdateFailures.StartFailed) ? 6 : 5;
+    }
+
+    /// <summary>Puts the previous version back and starts it; if that fails, starts it from the backup folder.</summary>
+    private bool RestorePrevious(string target, string backup, string failure)
+    {
+        try
+        {
+            if (Directory.Exists(target))
+            {
+                Retry(() => Directory.Delete(target, recursive: true));
+            }
+
+            Retry(() => Directory.Move(backup, target));
+        }
+        catch (Exception restore) when (restore is IOException or UnauthorizedAccessException)
+        {
+            log($"Restoring failed too ({restore.Message}). The previous version is in '{backup}'.");
+            Restart(backup, UpdateFailures.RestoreFailed);
+            return false;
+        }
+
+        Restart(target, failure);
+        return true;
     }
 
     /// <summary>Starts the previous version again and tells it why, so the user isn't silently offered the same update.</summary>
@@ -145,7 +161,7 @@ public sealed class UpdateApplier(Func<int, TimeSpan, bool> waitForExit, IProces
         }
     }
 
-    private static void Retry(Action action)
+    private void Retry(Action action)
     {
         for (var attempt = 1; ; attempt++)
         {
@@ -156,7 +172,7 @@ public sealed class UpdateApplier(Func<int, TimeSpan, bool> waitForExit, IProces
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException && attempt < 10)
             {
-                Thread.Sleep(500);
+                Thread.Sleep(_retryDelay);
             }
         }
     }
