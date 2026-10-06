@@ -370,6 +370,58 @@ public sealed class AdStoreTests
     }
 
     [Fact]
+    public async Task Pre_release_v1_database_is_migrated_and_accepts_removals_of_unknown_ids()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "arbetswatch-tests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        var path = Path.Combine(directory, "arbetswatch.db");
+
+        // The schema v1 shape written by builds before the review fix: first_seen_utc NOT NULL.
+        using (var connection = new SqliteConnection($"Data Source={path};Pooling=False"))
+        {
+            connection.Open();
+            using var create = connection.CreateCommand();
+            create.CommandText = """
+                CREATE TABLE ad_summary (id TEXT NOT NULL PRIMARY KEY, headline TEXT NOT NULL, employer TEXT, url TEXT, country_id TEXT,
+                    region_id TEXT, region_label TEXT, municipality_id TEXT, municipality_label TEXT, worktime_id TEXT, worktime_label TEXT,
+                    published_utc INTEGER, published_raw TEXT, last_publication_utc INTEGER, last_publication_raw TEXT, changed_utc INTEGER NOT NULL);
+                CREATE TABLE ad_state (id TEXT NOT NULL PRIMARY KEY, first_seen_utc INTEGER NOT NULL, unread INTEGER NOT NULL DEFAULT 0,
+                    changed_utc INTEGER NOT NULL, changed_kind TEXT NOT NULL, inactive_since_utc INTEGER, inactive_reason TEXT);
+                CREATE TABLE sync_state (id INTEGER NOT NULL PRIMARY KEY CHECK (id = 1), committed_through_utc INTEGER, last_success_utc INTEGER,
+                    last_snapshot_utc INTEGER, baseline_established INTEGER NOT NULL DEFAULT 0, time_adapter_version INTEGER NOT NULL DEFAULT 0);
+                INSERT INTO sync_state (id, baseline_established, committed_through_utc) VALUES (1, 1, 0);
+                CREATE TABLE preferences (key TEXT NOT NULL PRIMARY KEY, value TEXT NOT NULL);
+                CREATE TABLE snapshot_staging (id TEXT NOT NULL PRIMARY KEY, headline TEXT NOT NULL, employer TEXT, url TEXT, country_id TEXT,
+                    region_id TEXT, region_label TEXT, municipality_id TEXT, municipality_label TEXT, worktime_id TEXT, worktime_label TEXT,
+                    published_utc INTEGER, published_raw TEXT, last_publication_utc INTEGER, last_publication_raw TEXT, changed_utc INTEGER NOT NULL,
+                    removed INTEGER NOT NULL DEFAULT 0);
+                INSERT INTO ad_state (id, first_seen_utc, unread, changed_utc, changed_kind) VALUES ('kept', 1, 1, 1, 'ad');
+                PRAGMA user_version = 1;
+                """;
+            create.ExecuteNonQuery();
+        }
+
+        using (var store = AdStore.Open(path))
+        {
+            await store.CommitBatchAsync([Fixtures.Removal("unknown", T0)], AdFilter.Default, T0.AddMinutes(1), T0.AddMinutes(1));
+            await store.CommitBatchAsync([Fixtures.Ad("unknown", changed: T0.AddMinutes(2))], AdFilter.Default, T0.AddMinutes(3), T0.AddMinutes(3));
+            Assert.True((await store.QueryAsync(AdFilter.Default, T0)).Single(r => r.Ad.Id == "unknown").Unread);
+        }
+
+        using (var check = new SqliteConnection($"Data Source={path};Pooling=False"))
+        {
+            check.Open();
+            Assert.Equal(Schema.LatestVersion, Schema.UserVersion(check));
+            using var kept = check.CreateCommand();
+            kept.CommandText = "SELECT unread FROM ad_state WHERE id = 'kept'";
+            Assert.Equal(1L, kept.ExecuteScalar());
+        }
+
+        SqliteConnection.ClearAllPools();
+        Directory.Delete(directory, recursive: true);
+    }
+
+    [Fact]
     public async Task Database_from_a_newer_version_is_refused()
     {
         using var temp = new TempStore();
