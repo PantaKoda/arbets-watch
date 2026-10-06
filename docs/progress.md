@@ -10,7 +10,7 @@ Status of the milestones in `AGENTS.md`, with the validation that was actually r
 | M3 — Bootstrap | Done |
 | M4 — Monitoring | Done |
 | M5 — Usable UI | Done |
-| M6 — Desktop release | Not started |
+| M6 — Desktop release | In progress: real sleep/resume, a DPI change and the tray menu still need a manual check |
 
 ## M0 — Contracts
 
@@ -118,6 +118,36 @@ dotnet build ArbetsWatch.slnx → 0 warnings, 0 errors
 dotnet test ArbetsWatch.slnx  → 118 passed
 ```
 
+## M6 — Desktop release
+
+- `scripts/publish-windows.ps1`: locked restore, Release build and tests, self-contained `win-x64` publish, ZIP and SHA-256. Core declares the `win-x64` RID so locked restore matches the publish (SQLite native assets).
+- Tray: Show, Refresh now, Pause monitoring (checked state follows Settings), Settings, Quit; tooltip shows the status. Closing hides to the tray; without a tray, closing quits.
+- Resume detection: a 30 s tick that finds a gap over 2 minutes requests a catch-up refresh.
+- Window bounds restored per saved position and moved back onto a working area when unreachable.
+- Transparency: acrylic/Mica/blur when available, surface only (text opaque); solid in high contrast, remote sessions, or when the platform grants none.
+- Unreadable database files are moved aside and the app starts with an empty cache; a database from a newer version is never opened.
+
+Validation on Windows 11:
+
+```text
+pwsh scripts/publish-windows.ps1 → 118 tests passed; ArbetsWatch-0.1.0-win-x64.zip, 73.4 MB (208 MB unpacked, 236 files)
+```
+
+- Published exe started with `PATH=C:\Windows\System32;C:\Windows` and no `DOTNET_ROOT`: runs (self-contained).
+- Offline restart (only the app process pointed at a refused proxy): saved list shown immediately; the scheduled poll failed as "No connection to Arbetsförmedlingen. Showing saved ads."; retry scheduled with backoff; Quit logged "Stopped".
+- Off-screen bounds: with saved bounds beyond both displays (x = 6000), the window opened at (1940, 100), at the right edge of the primary display. Windows clamps a start position outside every display onto the nearest display before the window opens, so ArbetsWatch's own recovery (which centers the window and now logs "was unreachable") did not need to run. The earlier (−6000, −6000) → (0, 0) result had the same cause.
+- Two displays (2560×1440 primary, 1920×1080 to its right, both 96 DPI): the window moved onto the second display was saved there on Quit and reopened at the same place (2700, 150). Both displays have the same scaling, so this is not a DPI-change check.
+- Transparent + dark theme: frosted surface with opaque text (captured).
+
+Limitations and checks not performed:
+
+- Real sleep/resume was not exercised (the machine was not put to sleep). `ResumeDetector` is unit-tested with a fake clock (a missed 30 s tick after an hour reports the gap), and the coordinator's catch-up after a 30 h gap is tested; the live path from a real suspend is unverified.
+- A display-scaling (DPI) change was not exercised; both displays run at 96 DPI.
+- The tray icon and its menu were not driven: UI Automation reaches only the taskbar button, not the notification-area icon. The app reports the tray as available.
+- Manual check still needed: put the PC to sleep for a few minutes and wake it (expect `Resumed after … catching up` in the log and a refresh), change display scaling with the app open, and click each tray menu item.
+- With transparency on, the blur also fills the 6 px margin outside the rounded frame.
+- Not code-signed; no installer; Windows x64 only.
+
 ## Next step
 
-M6: tray and window behavior checks (sleep/resume, offline restart, DPI/monitor changes), transparency, self-contained Windows ZIP.
+Run the manual M6 checks above, merge the PR stack into `main` in order, then tag the first release from a reviewed `main` commit (AGENTS.md section 11).
