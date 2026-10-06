@@ -21,7 +21,8 @@ public sealed class AdRecordParserTests
         Assert.Equal("Heltid", ad.WorktimeLabel);
         Assert.Equal("2026-10-06T19:02:25", ad.PublishedRaw);
         Assert.Equal(new DateTimeOffset(2026, 10, 6, 17, 2, 25, TimeSpan.Zero), ad.PublishedUtc);
-        Assert.Equal(DateTimeOffset.FromUnixTimeMilliseconds(1791300145951), ad.ChangedUtc);
+        Assert.Equal(DateTimeOffset.FromUnixTimeMilliseconds(1791306145951), ad.ChangedUtc);
+        Assert.Equal(new DateTimeOffset(2026, 10, 6, 17, 2, 25, 951, TimeSpan.Zero), ad.ChangedUtc);
         Assert.Equal(new DateTimeOffset(2026, 11, 6, 22, 59, 59, TimeSpan.Zero), ad.LastPublicationUtc);
     }
 
@@ -43,6 +44,28 @@ public sealed class AdRecordParserTests
         var removal = Assert.IsType<AdRemoval>(AdRecordParser.Parse("""{"id":"5","removed":true}""", Fixtures.Fallback));
         Assert.Equal(Fixtures.Fallback, removal.RemovedUtc);
         Assert.Null(removal.RemovedRaw);
+    }
+
+    [Fact]
+    public void Unreadable_removal_date_keeps_its_text_and_is_applied_as_newest()
+    {
+        var removal = Assert.IsType<AdRemoval>(AdRecordParser.Parse("""{"id":"5","removed":true,"removed_date":"2026-10-06 19:08"}""", Fixtures.Fallback));
+        Assert.Equal(Fixtures.Fallback, removal.RemovedUtc);
+        Assert.Equal("2026-10-06 19:08", removal.RemovedRaw);
+    }
+
+    [Fact]
+    public void Active_ad_without_timestamp_is_ordered_as_newest_not_by_publication()
+    {
+        var ad = AdRecordParser.Parse("""{"id":"7","headline":"x","publication_date":"2025-01-01T10:00:00"}""", Fixtures.Fallback);
+        Assert.Equal(Fixtures.Fallback, ad.SourceChangedUtc);
+    }
+
+    [Fact]
+    public void Removal_in_the_repeated_autumn_hour_takes_the_later_instant()
+    {
+        var removal = Assert.IsType<AdRemoval>(AdRecordParser.Parse("""{"id":"5","removed":true,"removed_date":"2026-10-25T02:30:00"}""", Fixtures.Fallback));
+        Assert.Equal(new DateTimeOffset(2026, 10, 25, 1, 30, 0, TimeSpan.Zero), removal.RemovedUtc);
     }
 
     [Fact]

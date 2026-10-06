@@ -34,7 +34,9 @@ dotnet test ArbetsWatch.slnx                       → 41 passed
 dotnet format ArbetsWatch.slnx --verify-no-changes → ok
 ```
 
-The CI workflow has not run yet; there is no GitHub remote.
+CI on GitHub (`PantaKoda/arbets-watch`, PR #2): `build-test-windows`, `core-tests-linux` and `format` passed after the `win-x64` RID fix for the publish step. SDK pinned to 10.0.401 with `latestPatch`, so analyzer and format rules move only with a deliberate SDK bump.
+
+Review fixes: All Sweden includes ads without a country; `AdFilterSql` is two-valued and composable (negation and two filters per command are tested); an active ad without `timestamp` is applied as the newest state instead of being ordered by its publication date; unreadable `removed_date` text is kept; ambiguous removal dates take the later instant.
 
 ## M2 — Persistence
 
