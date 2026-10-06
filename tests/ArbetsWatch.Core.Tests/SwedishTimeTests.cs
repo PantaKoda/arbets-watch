@@ -25,6 +25,12 @@ public sealed class SwedishTimeTests
     }
 
     [Fact]
+    public void Repeated_autumn_hour_can_read_as_the_later_instant()
+    {
+        Assert.Equal(new DateTimeOffset(2026, 10, 25, 1, 30, 0, TimeSpan.Zero), SwedishTime.ParseLocal("2026-10-25T02:30:00", laterInRepeatedHour: true));
+    }
+
+    [Fact]
     public void Spring_gap_time_reads_with_the_winter_offset()
     {
         // 2027-03-28 02:00 → 03:00; 02:30 does not exist locally.
