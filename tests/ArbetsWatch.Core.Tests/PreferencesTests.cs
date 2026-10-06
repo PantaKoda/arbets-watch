@@ -23,6 +23,7 @@ public sealed class PreferencesTests
             Transparent = true,
             AlwaysOnTop = true,
             MonitoringPaused = true,
+            Accent = "#9D7CFF",
         };
 
         await PreferencesStore.SaveAsync(temp.Store, preferences);

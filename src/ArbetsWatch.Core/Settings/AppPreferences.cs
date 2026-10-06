@@ -33,6 +33,9 @@ public sealed record AppPreferences
 
     public bool AlwaysOnTop { get; init; }
 
+    /// <summary>The accent preset as #RRGGBB; null is the default station cyan.</summary>
+    public string? Accent { get; init; }
+
     public bool MonitoringPaused { get; init; }
 
     public AppPreferences Normalized() =>
@@ -62,7 +65,7 @@ public static class PreferencesStore
         var dto = new PreferencesDto(
             new FilterDto(p.Filter.AllSweden, [.. p.Filter.RegionIds.Order(StringComparer.Ordinal)],
                 [.. p.Filter.MunicipalityIds.Order(StringComparer.Ordinal)], p.Filter.Worktime),
-            p.PollMinutes, p.Window, p.Theme, p.Transparent, p.AlwaysOnTop, p.MonitoringPaused);
+            p.PollMinutes, p.Window, p.Theme, p.Transparent, p.AlwaysOnTop, p.MonitoringPaused, p.Accent);
         return JsonSerializer.Serialize(dto, PreferencesJsonContext.Default.PreferencesDto);
     }
 
@@ -101,6 +104,7 @@ public static class PreferencesStore
                 Transparent = dto.Transparent ?? false,
                 AlwaysOnTop = dto.AlwaysOnTop ?? false,
                 MonitoringPaused = dto.MonitoringPaused ?? false,
+                Accent = dto.Accent is { Length: > 0 } accent ? accent : null,
             }.Normalized();
         }
         catch (JsonException)
@@ -119,7 +123,8 @@ internal sealed record PreferencesDto(
     ThemePreference? Theme,
     bool? Transparent,
     bool? AlwaysOnTop,
-    bool? MonitoringPaused);
+    bool? MonitoringPaused,
+    string? Accent = null);
 
 [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase, UseStringEnumConverter = true)]
 [JsonSerializable(typeof(PreferencesDto))]

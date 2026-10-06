@@ -2,6 +2,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:ArbetsWatch.Desktop.ViewModels"
         xmlns:c="using:ArbetsWatch.Desktop.Controls"
+        xmlns:p="using:ArbetsWatch.Desktop.Presentation"
         x:Class="ArbetsWatch.Desktop.Views.MainWindow"
         x:DataType="vm:MainViewModel"
         Title="ArbetsWatch"
@@ -298,6 +299,22 @@
                         <ComboBox Grid.Column="1" ItemsSource="{Binding ThemeOptions}" SelectedIndex="{Binding ThemeIndex}" Width="120"
                                   AutomationProperties.Name="Theme" />
                       </Grid>
+                      <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                        <TextBlock Text="Accent" VerticalAlignment="Center" />
+                        <ComboBox Grid.Column="1" ItemsSource="{Binding Accents}" SelectedItem="{Binding SelectedAccent}" Width="160"
+                                  AutomationProperties.Name="Accent">
+                          <ComboBox.ItemTemplate>
+                            <DataTemplate x:DataType="p:AccentPreset">
+                              <StackPanel Orientation="Horizontal" Spacing="8">
+                                <Ellipse Width="10" Height="10" Fill="{Binding Swatch}" VerticalAlignment="Center" />
+                                <TextBlock Text="{Binding Name}" VerticalAlignment="Center" />
+                              </StackPanel>
+                            </DataTemplate>
+                          </ComboBox.ItemTemplate>
+                        </ComboBox>
+                      </Grid>
+                      <TextBlock Classes="secondary" TextWrapping="Wrap"
+                                 Text="The accent colors the frame, highlights and selected chips. Status colors (updated, offline, failed) never change." />
                       <CheckBox Content="Transparent background" IsChecked="{Binding Transparent}" />
                       <CheckBox Content="Always on top" IsChecked="{Binding AlwaysOnTop}" />
                     </StackPanel>
