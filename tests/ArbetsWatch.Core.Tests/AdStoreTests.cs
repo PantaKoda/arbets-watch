@@ -274,6 +274,59 @@ public sealed class AdStoreTests
     }
 
     [Fact]
+    public async Task Mark_read_by_ids_leaves_ads_committed_later_unread()
+    {
+        using var temp = new TempStore();
+        await temp.BaselineAsync();
+        await temp.Store.CommitBatchAsync([Fixtures.Ad("seen", changed: T0.AddMinutes(1))], AdFilter.Default, T0.AddMinutes(2), T0.AddMinutes(2));
+        var shown = (await temp.RowsAsync()).Values.Where(r => r.Unread).Select(r => r.Ad.Id).ToList();
+
+        // A refresh commits another new ad before the click is processed.
+        await temp.Store.CommitBatchAsync([Fixtures.Ad("later", changed: T0.AddMinutes(3))], AdFilter.Default, T0.AddMinutes(4), T0.AddMinutes(4));
+        Assert.Equal(1, await temp.Store.MarkReadAsync(shown));
+
+        var rows = await temp.RowsAsync();
+        Assert.False(rows["seen"].Unread);
+        Assert.True(rows["later"].Unread);
+    }
+
+    [Fact]
+    public async Task Unreadable_database_is_moved_aside_and_never_paired_with_its_old_sidecars()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "arbetswatch-tests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        var path = Path.Combine(directory, "arbetswatch.db");
+        File.WriteAllText(path, "this is not a database, it is plain text that is long enough to have a header....");
+        File.WriteAllText(path + "-wal", "stale");
+        File.WriteAllText(path + "-shm", "stale");
+
+        var opened = StoreOpener.Open(path);
+        using (opened.Store)
+        {
+            Assert.NotNull(opened.QuarantinedTo);
+            Assert.Equal("this is not a database", File.ReadAllText(opened.QuarantinedTo)[..22]);
+
+            // The new database is never paired with the old sidecars (SQLite may already have discarded them).
+            foreach (var suffix in new[] { "-wal", "-shm" })
+            {
+                Assert.False(File.Exists(path + suffix) && ReadShared(path + suffix) == "stale");
+            }
+
+            Assert.Empty(await opened.Store.QueryAsync(AdFilter.Default, T0));
+        }
+
+        SqliteConnection.ClearAllPools();
+        Directory.Delete(directory, recursive: true);
+    }
+
+    private static string ReadShared(string path)
+    {
+        using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+        using var reader = new StreamReader(stream);
+        return reader.ReadToEnd();
+    }
+
+    [Fact]
     public async Task Ads_expire_at_their_last_publication_instant_without_a_removal()
     {
         using var temp = new TempStore();

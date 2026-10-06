@@ -4,13 +4,20 @@
     <AssemblyName>ArbetsWatch</AssemblyName>
     <RootNamespace>ArbetsWatch.Desktop</RootNamespace>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>Assets\ArbetsWatch.ico</ApplicationIcon>
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
     <!-- Release RID; listed so restore and packages.lock.json match the release publish. -->
     <RuntimeIdentifiers>win-x64</RuntimeIdentifiers>
+    <!-- LibraryImport (SystemVisuals) generates unsafe marshalling code. -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\ArbetsWatch.Core\ArbetsWatch.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <AvaloniaResource Include="Assets\ArbetsWatch.ico" />
   </ItemGroup>
 
   <ItemGroup>

@@ -4,6 +4,8 @@ A Windows-first desktop app that keeps a local, filterable view of the job ads c
 
 > **Status: in development (v0.1).** See [docs/progress.md](docs/progress.md) for what works and what has been verified.
 
+![ArbetsWatch filtered to Göteborg, Mölndal and Hallands län, part-time](docs/images/filtered-goteborg-molndal-halland-deltid.png)
+
 ## How it works
 
 - On first start, ArbetsWatch downloads the complete JobStream snapshot (≈ 450 MB, about a minute on a fast connection) and keeps a compact summary of every current ad in a local SQLite database.
