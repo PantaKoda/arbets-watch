@@ -10,7 +10,7 @@ Status of the milestones in `AGENTS.md`, with the validation that was actually r
 | M3 — Bootstrap | Done |
 | M4 — Monitoring | Done |
 | M5 — Usable UI | Done |
-| M6 — Desktop release | Not started |
+| M6 — Desktop release | Done (see limitations) |
 
 ## M0 — Contracts
 
@@ -109,6 +109,35 @@ dotnet build ArbetsWatch.slnx → 0 warnings, 0 errors
 dotnet test ArbetsWatch.slnx  → 118 passed
 ```
 
+## M6 — Desktop release
+
+- `scripts/publish-windows.ps1`: locked restore, Release build and tests, self-contained `win-x64` publish, ZIP and SHA-256. Core declares the `win-x64` RID so locked restore matches the publish (SQLite native assets).
+- Tray: Show, Refresh now, Pause monitoring (checked state follows Settings), Settings, Quit; tooltip shows the status. Closing hides to the tray; without a tray, closing quits.
+- Resume detection: a 30 s tick that finds a gap over 2 minutes requests a catch-up refresh.
+- Window bounds restored per saved position and moved back onto a working area when unreachable.
+- Transparency: acrylic/Mica/blur when available, surface only (text opaque); solid in high contrast, remote sessions, or when the platform grants none.
+- Unreadable database files are moved aside and the app starts with an empty cache; a database from a newer version is never opened.
+
+Validation on Windows 11:
+
+```text
+pwsh scripts/publish-windows.ps1 → 118 tests passed; ArbetsWatch-0.1.0-win-x64.zip, 73.4 MB (208 MB unpacked, 236 files)
+```
+
+- Published exe started with `PATH=C:\Windows\System32;C:\Windows` and no `DOTNET_ROOT`: runs (self-contained).
+- Offline restart (only the app process pointed at a refused proxy): saved list shown immediately; the scheduled poll failed as "No connection to Arbetsförmedlingen. Showing saved ads."; retry scheduled with backoff; Quit logged "Stopped".
+- Saved bounds at (−6000, −6000): window opened on screen at (0, 0).
+- Transparent + dark theme: frosted surface with opaque text (captured).
+
+Limitations and checks not performed:
+
+- Real sleep/resume was not exercised (the machine was not put to sleep); only the gap-detection code path exists.
+- DPI and monitor changes were not exercised (single display); only the off-screen recovery was.
+- Tray icon clicks and menu items were not driven by automation; the tray reported as available.
+- With transparency on, the blur also fills the 6 px margin outside the rounded frame.
+- Off-screen recovery places the window at the working area's origin rather than centering it.
+- Not code-signed; no installer; Windows x64 only.
+
 ## Next step
 
-M6: tray and window behavior checks (sleep/resume, offline restart, DPI/monitor changes), transparency, self-contained Windows ZIP.
+Create the GitHub repository (not done: no remote was authorized), push the milestone branches, open PRs and let CI run. Then a first draft release from a reviewed commit on `main`.
