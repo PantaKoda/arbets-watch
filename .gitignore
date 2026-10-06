@@ -1,0 +1,18 @@
+# Build output
+bin/
+obj/
+artifacts/
+*.user
+*.suo
+.vs/
+.idea/
+TestResults/
+
+# Local data: never commit databases, snapshots, logs or local settings
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+snapshot*.jsonl
+*.log
+appsettings.Local.json
