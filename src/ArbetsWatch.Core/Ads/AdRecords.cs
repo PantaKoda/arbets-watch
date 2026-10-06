@@ -40,8 +40,8 @@ public sealed record AdSummary(
 
 /// <summary>
 /// A removal. Its shape differs from an ad: only the ID, removal time and location concept IDs are present.
-/// When <c>removed_date</c> is missing, <see cref="RemovedUtc"/> is the end of the requested interval and
-/// <see cref="RemovedRaw"/> is null.
+/// When <c>removed_date</c> is missing or unreadable, <see cref="RemovedUtc"/> is the end of the requested
+/// interval; <see cref="RemovedRaw"/> always holds the source text (null only when it was missing).
 /// </summary>
 public sealed record AdRemoval(
     string Id,

@@ -6,7 +6,6 @@ using ArbetsWatch.Core.Storage;
 using ArbetsWatch.Core.Sync;
 using ArbetsWatch.Desktop.Platform;
 using Avalonia;
-using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging;
 
 namespace ArbetsWatch.Desktop;
@@ -30,16 +29,29 @@ internal static class Program
         var version = typeof(Program).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? "dev";
         logger.LogInformation("ArbetsWatch {Version} starting on {OS}; data directory {DataDirectory}", version, Environment.OSVersion, paths.DataDirectory);
 
-        AdStore store;
+        StoreOpenResult opened;
         try
         {
-            store = OpenStore(paths, logger);
+            opened = StoreOpener.Open(paths.DatabasePath);
+        }
+        catch (StoreUnavailableException ex)
+        {
+            logger.LogCritical(ex, "Cannot open the database");
+            FatalMessage.Show($"ArbetsWatch can't open its saved data in {paths.DataDirectory}.\n\n{ex.Message}\n\nNothing was changed. Close other programs that may use the folder, then start ArbetsWatch again.");
+            return 2;
         }
         catch (InvalidOperationException ex)
         {
             // A database from a newer version: never overwrite it.
             logger.LogCritical(ex, "Cannot open the database");
+            FatalMessage.Show($"The saved data in {paths.DataDirectory} was created by a newer ArbetsWatch. Start the newer version, or remove that folder to start fresh.");
             return 2;
+        }
+
+        var store = opened.Store;
+        if (opened.QuarantinedTo is { } aside)
+        {
+            logger.LogError("The database was unreadable and was moved to {Aside}; starting with an empty cache", aside);
         }
 
         using (store)
@@ -54,6 +66,10 @@ internal static class Program
                 preferences.Filter, TimeSpan.FromMinutes(preferences.PollMinutes), preferences.MonitoringPaused);
 
             using var shell = new AppShell(paths, store, coordinator, PlaceCatalog.LoadBundled(), preferences, instance, loggers);
+            if (opened.QuarantinedTo is not null)
+            {
+                shell.SetStartupMessage("The saved data couldn't be read, so ArbetsWatch started fresh and downloads the ads again. The old file was kept next to the new one.");
+            }
             try
             {
                 return BuildAvaloniaApp(() => new App(shell)).StartWithClassicDesktopLifetime(args);
@@ -73,23 +89,6 @@ internal static class Program
         AppBuilder.Configure(createApp)
             .UsePlatformDetect()
             .LogToTrace();
-
-    /// <summary>Opens the cache; an unreadable (corrupt) file is moved aside so the app can start fresh.</summary>
-    private static AdStore OpenStore(AppPaths paths, ILogger logger)
-    {
-        try
-        {
-            return AdStore.Open(paths.DatabasePath);
-        }
-        catch (SqliteException ex)
-        {
-            var aside = $"{paths.DatabasePath}.unreadable-{DateTime.UtcNow:yyyyMMddHHmmss}";
-            logger.LogError(ex, "The database could not be opened; moving it to {Aside} and starting with an empty cache", aside);
-            SqliteConnection.ClearAllPools();
-            File.Move(paths.DatabasePath, aside);
-            return AdStore.Open(paths.DatabasePath);
-        }
-    }
 
     private static ILoggerFactory CreateLoggerFactory(AppPaths paths) =>
         LoggerFactory.Create(builder =>

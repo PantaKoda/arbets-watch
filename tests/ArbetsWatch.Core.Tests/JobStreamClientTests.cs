@@ -82,6 +82,33 @@ public sealed class JobStreamClientTests
     }
 
     [Fact]
+    public async Task Valid_json_that_is_not_an_ad_is_invalid_data()
+    {
+        var client = Client(_ => Lines("""{"headline":"no id"}"""));
+        var ex = await Assert.ThrowsAsync<JobStreamException>(() => client.ReadChangesAsync(DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, CancellationToken.None));
+        Assert.Equal(FailureKind.InvalidData, ex.Kind);
+        Assert.False(ex.IsConnectivity);
+    }
+
+    [Fact]
+    public async Task Slow_consumer_is_not_mistaken_for_a_stalled_connection()
+    {
+        var body = string.Join("\n", Enumerable.Range(1, 3).Select(i => $$"""{"id":"{{i}}","removed":true,"removed_date":"2026-10-06T19:08:13"}"""));
+        var client = new JobStreamClient(
+            new HttpClient(new StubHandler(_ => Lines(body))) { BaseAddress = JobStreamClient.DefaultBaseAddress },
+            stallTimeout: TimeSpan.FromMilliseconds(150));
+
+        var count = 0;
+        await foreach (var _ in client.ReadSnapshotAsync(CancellationToken.None))
+        {
+            count++;
+            await Task.Delay(400, TestContext.Current.CancellationToken); // longer than the stall timeout
+        }
+
+        Assert.Equal(3, count);
+    }
+
+    [Fact]
     public async Task Connection_dropped_mid_body_is_a_transient_failure()
     {
         var client = Client(_ => new HttpResponseMessage(HttpStatusCode.OK)
@@ -96,6 +123,7 @@ public sealed class JobStreamClientTests
             }
         });
         Assert.Equal(FailureKind.Transient, ex.Kind);
+        Assert.True(ex.IsConnectivity);
     }
 
     [Fact]
