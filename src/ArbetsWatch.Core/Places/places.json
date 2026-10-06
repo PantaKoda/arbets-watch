@@ -1,0 +1,1920 @@
+{
+  "schemaVersion": 1,
+  "generatedUtc": "2026-10-06T19:05:58Z",
+  "taxonomyVersion": 31,
+  "source": "https://taxonomy.api.jobtechdev.se/v1/taxonomy/graphql",
+  "country": {
+    "id": "i46j_HmG_v64",
+    "label": "Sverige"
+  },
+  "regions": [
+    {
+      "id": "CifL_Rzy_Mku",
+      "label": "Stockholms län",
+      "code": "01",
+      "countryId": "i46j_HmG_v64",
+      "municipalities": [
+        {
+          "id": "XWKY_c49_5nv",
+          "label": "Upplands Väsby",
+          "code": "0114",
+          "regionId": "CifL_Rzy_Mku"
+        },
+        {
+          "id": "K4az_Bm6_hRV",
+          "label": "Vallentuna",
+          "code": "0115",
+          "regionId": "CifL_Rzy_Mku"
+        },
+        {
+          "id": "8gKt_ZsV_PGj",
+          "label": "Österåker",
+          "code": "0117",
+          "regionId": "CifL_Rzy_Mku"
+        },
+        {
+          "id": "15nx_Vut_GrH",
+          "label": "Värmdö",
+          "code": "0120",
+          "regionId": "CifL_Rzy_Mku"
+        },
+        {
+          "id": "qm5H_jsD_fUF",
+          "label": "Järfälla",
+          "code": "0123",
+          "regionId": "CifL_Rzy_Mku"
+        },
+        {
+          "id": "magF_Gon_YL2",
+          "label": "Ekerö",
+          "code": "0125",
+          "regionId": "CifL_Rzy_Mku"
+        },
+        {
+          "id": "g1Gc_aXK_EKu",
+          "label": "Huddinge",
+          "code": "0126",
+          "regionId": "CifL_Rzy_Mku"
+        },
+        {
+          "id": "CCVZ_JA7_d3y",
+          "label": "Botkyrka",
+          "code": "0127",
+          "regionId": "CifL_Rzy_Mku"
+        },
+        {
+          "id": "4KBw_CPU_VQv",
+          "label": "Salem",
+          "code": "0128",
+          "regionId": "CifL_Rzy_Mku"
+        },
+        {
+          "id": "Q7gp_9dT_k2F",
+          "label": "Haninge",
+          "code": "0136",
+          "regionId": "CifL_Rzy_Mku"
+        },
+        {
+          "id": "sTPc_k2B_SqV",
+          "label": "Tyresö",
+          "code": "0138",
+          "regionId": "CifL_Rzy_Mku"
+        },
+        {
+          "id": "w6yq_CGR_Fiv",
+          "label": "Upplands-Bro",
+          "code": "0139",
+          "regionId": "CifL_Rzy_Mku"
+        },
+        {
+          "id": "mBKv_q3B_SK8",
+          "label": "Nykvarn",
+          "code": "0140",
+          "regionId": "CifL_Rzy_Mku"
+        },
+        {
+          "id": "onpA_B5a_zfv",
+          "label": "Täby",
+          "code": "0160",
+          "regionId": "CifL_Rzy_Mku"
+        },
+        {
+          "id": "E4CV_a5E_ucX",
+          "label": "Danderyd",
+          "code": "0162",
+          "regionId": "CifL_Rzy_Mku"
+        },
+        {
+          "id": "Z5Cq_SgB_dsB",
+          "label": "Sollentuna",
+          "code": "0163",
+          "regionId": "CifL_Rzy_Mku"
+        },
+        {
+          "id": "AvNB_uwa_6n6",
+          "label": "Stockholm",
+          "code": "0180",
+          "regionId": "CifL_Rzy_Mku"
+        },
+        {
+          "id": "g6hK_M1o_hiU",
+          "label": "Södertälje",
+          "code": "0181",
+          "regionId": "CifL_Rzy_Mku"
+        },
+        {
+          "id": "aYA7_PpG_BqP",
+          "label": "Nacka",
+          "code": "0182",
+          "regionId": "CifL_Rzy_Mku"
+        },
+        {
+          "id": "UTJZ_zHH_mJm",
+          "label": "Sundbyberg",
+          "code": "0183",
+          "regionId": "CifL_Rzy_Mku"
+        },
+        {
+          "id": "zHxw_uJZ_NJ8",
+          "label": "Solna",
+          "code": "0184",
+          "regionId": "CifL_Rzy_Mku"
+        },
+        {
+          "id": "FBbF_mda_TYD",
+          "label": "Lidingö",
+          "code": "0186",
+          "regionId": "CifL_Rzy_Mku"
+        },
+        {
+          "id": "9aAJ_j6L_DST",
+          "label": "Vaxholm",
+          "code": "0187",
+          "regionId": "CifL_Rzy_Mku"
+        },
+        {
+          "id": "btgf_fS7_sKG",
+          "label": "Norrtälje",
+          "code": "0188",
+          "regionId": "CifL_Rzy_Mku"
+        },
+        {
+          "id": "8ryy_X54_xJj",
+          "label": "Sigtuna",
+          "code": "0191",
+          "regionId": "CifL_Rzy_Mku"
+        },
+        {
+          "id": "37UU_T7x_oxG",
+          "label": "Nynäshamn",
+          "code": "0192",
+          "regionId": "CifL_Rzy_Mku"
+        }
+      ]
+    },
+    {
+      "id": "zBon_eET_fFU",
+      "label": "Uppsala län",
+      "code": "03",
+      "countryId": "i46j_HmG_v64",
+      "municipalities": [
+        {
+          "id": "Bbs5_JUs_Qh5",
+          "label": "Håbo",
+          "code": "0305",
+          "regionId": "zBon_eET_fFU"
+        },
+        {
+          "id": "cbyw_9aK_Cni",
+          "label": "Älvkarleby",
+          "code": "0319",
+          "regionId": "zBon_eET_fFU"
+        },
+        {
+          "id": "KALq_sG6_VrW",
+          "label": "Knivsta",
+          "code": "0330",
+          "regionId": "zBon_eET_fFU"
+        },
+        {
+          "id": "sD2e_1Tr_4WZ",
+          "label": "Heby",
+          "code": "0331",
+          "regionId": "zBon_eET_fFU"
+        },
+        {
+          "id": "K8A2_JBa_e6e",
+          "label": "Tierp",
+          "code": "0360",
+          "regionId": "zBon_eET_fFU"
+        },
+        {
+          "id": "otaF_bQY_4ZD",
+          "label": "Uppsala",
+          "code": "0380",
+          "regionId": "zBon_eET_fFU"
+        },
+        {
+          "id": "HGwg_unG_TsG",
+          "label": "Enköping",
+          "code": "0381",
+          "regionId": "zBon_eET_fFU"
+        },
+        {
+          "id": "VE3L_3Ei_XbG",
+          "label": "Östhammar",
+          "code": "0382",
+          "regionId": "zBon_eET_fFU"
+        }
+      ]
+    },
+    {
+      "id": "s93u_BEb_sx2",
+      "label": "Södermanlands län",
+      "code": "04",
+      "countryId": "i46j_HmG_v64",
+      "municipalities": [
+        {
+          "id": "rut9_f5W_kTX",
+          "label": "Vingåker",
+          "code": "0428",
+          "regionId": "s93u_BEb_sx2"
+        },
+        {
+          "id": "os8Y_RUo_U3u",
+          "label": "Gnesta",
+          "code": "0461",
+          "regionId": "s93u_BEb_sx2"
+        },
+        {
+          "id": "KzvD_ePV_DKQ",
+          "label": "Nyköping",
+          "code": "0480",
+          "regionId": "s93u_BEb_sx2"
+        },
+        {
+          "id": "72XK_mUU_CAH",
+          "label": "Oxelösund",
+          "code": "0481",
+          "regionId": "s93u_BEb_sx2"
+        },
+        {
+          "id": "P8yp_WT9_Bks",
+          "label": "Flen",
+          "code": "0482",
+          "regionId": "s93u_BEb_sx2"
+        },
+        {
+          "id": "snx9_qVD_Dr1",
+          "label": "Katrineholm",
+          "code": "0483",
+          "regionId": "s93u_BEb_sx2"
+        },
+        {
+          "id": "kMxr_NiX_YrU",
+          "label": "Eskilstuna",
+          "code": "0484",
+          "regionId": "s93u_BEb_sx2"
+        },
+        {
+          "id": "shnD_RiE_RKL",
+          "label": "Strängnäs",
+          "code": "0486",
+          "regionId": "s93u_BEb_sx2"
+        },
+        {
+          "id": "rjzu_nQn_mCK",
+          "label": "Trosa",
+          "code": "0488",
+          "regionId": "s93u_BEb_sx2"
+        }
+      ]
+    },
+    {
+      "id": "oLT3_Q9p_3nn",
+      "label": "Östergötlands län",
+      "code": "05",
+      "countryId": "i46j_HmG_v64",
+      "municipalities": [
+        {
+          "id": "Fu8g_29u_3xF",
+          "label": "Ödeshög",
+          "code": "0509",
+          "regionId": "oLT3_Q9p_3nn"
+        },
+        {
+          "id": "vRRz_nLT_vYv",
+          "label": "Ydre",
+          "code": "0512",
+          "regionId": "oLT3_Q9p_3nn"
+        },
+        {
+          "id": "U4XJ_hYF_FBA",
+          "label": "Kinda",
+          "code": "0513",
+          "regionId": "oLT3_Q9p_3nn"
+        },
+        {
+          "id": "e5LB_m9V_TnT",
+          "label": "Boxholm",
+          "code": "0560",
+          "regionId": "oLT3_Q9p_3nn"
+        },
+        {
+          "id": "bFWo_FRJ_x2T",
+          "label": "Åtvidaberg",
+          "code": "0561",
+          "regionId": "oLT3_Q9p_3nn"
+        },
+        {
+          "id": "dMFe_J6W_iJv",
+          "label": "Finspång",
+          "code": "0562",
+          "regionId": "oLT3_Q9p_3nn"
+        },
+        {
+          "id": "Sb3D_iGB_aXu",
+          "label": "Valdemarsvik",
+          "code": "0563",
+          "regionId": "oLT3_Q9p_3nn"
+        },
+        {
+          "id": "bm2x_1mr_Qhx",
+          "label": "Linköping",
+          "code": "0580",
+          "regionId": "oLT3_Q9p_3nn"
+        },
+        {
+          "id": "SYty_Yho_JAF",
+          "label": "Norrköping",
+          "code": "0581",
+          "regionId": "oLT3_Q9p_3nn"
+        },
+        {
+          "id": "Pcv9_yYh_Uw8",
+          "label": "Söderköping",
+          "code": "0582",
+          "regionId": "oLT3_Q9p_3nn"
+        },
+        {
+          "id": "E1MC_1uG_phm",
+          "label": "Motala",
+          "code": "0583",
+          "regionId": "oLT3_Q9p_3nn"
+        },
+        {
+          "id": "VcCU_Y86_eKU",
+          "label": "Vadstena",
+          "code": "0584",
+          "regionId": "oLT3_Q9p_3nn"
+        },
+        {
+          "id": "stqv_JGB_x8A",
+          "label": "Mjölby",
+          "code": "0586",
+          "regionId": "oLT3_Q9p_3nn"
+        }
+      ]
+    },
+    {
+      "id": "MtbE_xWT_eMi",
+      "label": "Jönköpings län",
+      "code": "06",
+      "countryId": "i46j_HmG_v64",
+      "municipalities": [
+        {
+          "id": "y9HE_XD7_WaD",
+          "label": "Aneby",
+          "code": "0604",
+          "regionId": "MtbE_xWT_eMi"
+        },
+        {
+          "id": "91VR_Hxi_GN4",
+          "label": "Gnosjö",
+          "code": "0617",
+          "regionId": "MtbE_xWT_eMi"
+        },
+        {
+          "id": "smXg_BXp_jTW",
+          "label": "Mullsjö",
+          "code": "0642",
+          "regionId": "MtbE_xWT_eMi"
+        },
+        {
+          "id": "9zQB_3vU_BQA",
+          "label": "Habo",
+          "code": "0643",
+          "regionId": "MtbE_xWT_eMi"
+        },
+        {
+          "id": "cNQx_Yqi_83Q",
+          "label": "Gislaved",
+          "code": "0662",
+          "regionId": "MtbE_xWT_eMi"
+        },
+        {
+          "id": "zFup_umX_LVv",
+          "label": "Vaggeryd",
+          "code": "0665",
+          "regionId": "MtbE_xWT_eMi"
+        },
+        {
+          "id": "KURg_KJF_Lwc",
+          "label": "Jönköping",
+          "code": "0680",
+          "regionId": "MtbE_xWT_eMi"
+        },
+        {
+          "id": "KfXT_ySA_do2",
+          "label": "Nässjö",
+          "code": "0682",
+          "regionId": "MtbE_xWT_eMi"
+        },
+        {
+          "id": "6bS8_fzf_xpW",
+          "label": "Värnamo",
+          "code": "0683",
+          "regionId": "MtbE_xWT_eMi"
+        },
+        {
+          "id": "L1cX_MjM_y8W",
+          "label": "Sävsjö",
+          "code": "0684",
+          "regionId": "MtbE_xWT_eMi"
+        },
+        {
+          "id": "xJqx_SLC_415",
+          "label": "Vetlanda",
+          "code": "0685",
+          "regionId": "MtbE_xWT_eMi"
+        },
+        {
+          "id": "VacK_WF6_XVg",
+          "label": "Eksjö",
+          "code": "0686",
+          "regionId": "MtbE_xWT_eMi"
+        },
+        {
+          "id": "Namm_SpC_RPG",
+          "label": "Tranås",
+          "code": "0687",
+          "regionId": "MtbE_xWT_eMi"
+        }
+      ]
+    },
+    {
+      "id": "tF3y_MF9_h5G",
+      "label": "Kronobergs län",
+      "code": "07",
+      "countryId": "i46j_HmG_v64",
+      "municipalities": [
+        {
+          "id": "78cu_S5T_Pgp",
+          "label": "Uppvidinge",
+          "code": "0760",
+          "regionId": "tF3y_MF9_h5G"
+        },
+        {
+          "id": "nXZy_1Jd_D8X",
+          "label": "Lessebo",
+          "code": "0761",
+          "regionId": "tF3y_MF9_h5G"
+        },
+        {
+          "id": "qz8Q_kDz_N2Y",
+          "label": "Tingsryd",
+          "code": "0763",
+          "regionId": "tF3y_MF9_h5G"
+        },
+        {
+          "id": "MMph_wmN_esc",
+          "label": "Alvesta",
+          "code": "0764",
+          "regionId": "tF3y_MF9_h5G"
+        },
+        {
+          "id": "EK6X_wZq_CQ8",
+          "label": "Älmhult",
+          "code": "0765",
+          "regionId": "tF3y_MF9_h5G"
+        },
+        {
+          "id": "ZhVf_yL5_Q5g",
+          "label": "Markaryd",
+          "code": "0767",
+          "regionId": "tF3y_MF9_h5G"
+        },
+        {
+          "id": "mmot_H3A_auW",
+          "label": "Växjö",
+          "code": "0780",
+          "regionId": "tF3y_MF9_h5G"
+        },
+        {
+          "id": "GzKo_S48_QCm",
+          "label": "Ljungby",
+          "code": "0781",
+          "regionId": "tF3y_MF9_h5G"
+        }
+      ]
+    },
+    {
+      "id": "9QUH_2bb_6Np",
+      "label": "Kalmar län",
+      "code": "08",
+      "countryId": "i46j_HmG_v64",
+      "municipalities": [
+        {
+          "id": "WPDh_pMr_RLZ",
+          "label": "Högsby",
+          "code": "0821",
+          "regionId": "9QUH_2bb_6Np"
+        },
+        {
+          "id": "wYFb_q7w_Nnh",
+          "label": "Torsås",
+          "code": "0834",
+          "regionId": "9QUH_2bb_6Np"
+        },
+        {
+          "id": "Muim_EAi_EFp",
+          "label": "Mörbylånga",
+          "code": "0840",
+          "regionId": "9QUH_2bb_6Np"
+        },
+        {
+          "id": "AEQD_1RT_vM9",
+          "label": "Hultsfred",
+          "code": "0860",
+          "regionId": "9QUH_2bb_6Np"
+        },
+        {
+          "id": "8eEp_iz4_cNN",
+          "label": "Mönsterås",
+          "code": "0861",
+          "regionId": "9QUH_2bb_6Np"
+        },
+        {
+          "id": "1koj_6Bg_8K6",
+          "label": "Emmaboda",
+          "code": "0862",
+          "regionId": "9QUH_2bb_6Np"
+        },
+        {
+          "id": "Pnmg_SgP_uHQ",
+          "label": "Kalmar",
+          "code": "0880",
+          "regionId": "9QUH_2bb_6Np"
+        },
+        {
+          "id": "xk68_bJa_6Fh",
+          "label": "Nybro",
+          "code": "0881",
+          "regionId": "9QUH_2bb_6Np"
+        },
+        {
+          "id": "tUP8_hRE_NcF",
+          "label": "Oskarshamn",
+          "code": "0882",
+          "regionId": "9QUH_2bb_6Np"
+        },
+        {
+          "id": "t7H4_S2P_3Fw",
+          "label": "Västervik",
+          "code": "0883",
+          "regionId": "9QUH_2bb_6Np"
+        },
+        {
+          "id": "a7hJ_zwv_2FR",
+          "label": "Vimmerby",
+          "code": "0884",
+          "regionId": "9QUH_2bb_6Np"
+        },
+        {
+          "id": "LY9i_qNL_kXf",
+          "label": "Borgholm",
+          "code": "0885",
+          "regionId": "9QUH_2bb_6Np"
+        }
+      ]
+    },
+    {
+      "id": "K8iD_VQv_2BA",
+      "label": "Gotlands län",
+      "code": "09",
+      "countryId": "i46j_HmG_v64",
+      "municipalities": [
+        {
+          "id": "Ft9P_E8F_VLJ",
+          "label": "Gotland",
+          "code": "0980",
+          "regionId": "K8iD_VQv_2BA"
+        }
+      ]
+    },
+    {
+      "id": "DQZd_uYs_oKb",
+      "label": "Blekinge län",
+      "code": "10",
+      "countryId": "i46j_HmG_v64",
+      "municipalities": [
+        {
+          "id": "1gEC_kvM_TXK",
+          "label": "Olofström",
+          "code": "1060",
+          "regionId": "DQZd_uYs_oKb"
+        },
+        {
+          "id": "YSt4_bAa_ccs",
+          "label": "Karlskrona",
+          "code": "1080",
+          "regionId": "DQZd_uYs_oKb"
+        },
+        {
+          "id": "vH8x_gVz_z7R",
+          "label": "Ronneby",
+          "code": "1081",
+          "regionId": "DQZd_uYs_oKb"
+        },
+        {
+          "id": "HtGW_WgR_dpE",
+          "label": "Karlshamn",
+          "code": "1082",
+          "regionId": "DQZd_uYs_oKb"
+        },
+        {
+          "id": "EVPy_phD_8Vf",
+          "label": "Sölvesborg",
+          "code": "1083",
+          "regionId": "DQZd_uYs_oKb"
+        }
+      ]
+    },
+    {
+      "id": "CaRE_1nn_cSU",
+      "label": "Skåne län",
+      "code": "12",
+      "countryId": "i46j_HmG_v64",
+      "municipalities": [
+        {
+          "id": "2r6J_g2w_qp5",
+          "label": "Svalöv",
+          "code": "1214",
+          "regionId": "CaRE_1nn_cSU"
+        },
+        {
+          "id": "vBrj_bov_KEX",
+          "label": "Staffanstorp",
+          "code": "1230",
+          "regionId": "CaRE_1nn_cSU"
+        },
+        {
+          "id": "64g5_Lio_aMU",
+          "label": "Burlöv",
+          "code": "1231",
+          "regionId": "CaRE_1nn_cSU"
+        },
+        {
+          "id": "Tcog_5sH_b46",
+          "label": "Vellinge",
+          "code": "1233",
+          "regionId": "CaRE_1nn_cSU"
+        },
+        {
+          "id": "LTt7_CGG_RUf",
+          "label": "Östra Göinge",
+          "code": "1256",
+          "regionId": "CaRE_1nn_cSU"
+        },
+        {
+          "id": "nBTS_Nge_dVH",
+          "label": "Örkelljunga",
+          "code": "1257",
+          "regionId": "CaRE_1nn_cSU"
+        },
+        {
+          "id": "waQp_FjW_qhF",
+          "label": "Bjuv",
+          "code": "1260",
+          "regionId": "CaRE_1nn_cSU"
+        },
+        {
+          "id": "5ohg_WJU_Ktn",
+          "label": "Kävlinge",
+          "code": "1261",
+          "regionId": "CaRE_1nn_cSU"
+        },
+        {
+          "id": "naG4_AUS_z2v",
+          "label": "Lomma",
+          "code": "1262",
+          "regionId": "CaRE_1nn_cSU"
+        },
+        {
+          "id": "n6r4_fjK_kRr",
+          "label": "Svedala",
+          "code": "1263",
+          "regionId": "CaRE_1nn_cSU"
+        },
+        {
+          "id": "oezL_78x_r89",
+          "label": "Skurup",
+          "code": "1264",
+          "regionId": "CaRE_1nn_cSU"
+        },
+        {
+          "id": "P3Cs_1ZP_9XB",
+          "label": "Sjöbo",
+          "code": "1265",
+          "regionId": "CaRE_1nn_cSU"
+        },
+        {
+          "id": "autr_KMa_cfp",
+          "label": "Hörby",
+          "code": "1266",
+          "regionId": "CaRE_1nn_cSU"
+        },
+        {
+          "id": "N29z_AqQ_Ppc",
+          "label": "Höör",
+          "code": "1267",
+          "regionId": "CaRE_1nn_cSU"
+        },
+        {
+          "id": "UMev_wGs_9bg",
+          "label": "Tomelilla",
+          "code": "1270",
+          "regionId": "CaRE_1nn_cSU"
+        },
+        {
+          "id": "WMNK_PXa_Khm",
+          "label": "Bromölla",
+          "code": "1272",
+          "regionId": "CaRE_1nn_cSU"
+        },
+        {
+          "id": "najS_Lvy_mDD",
+          "label": "Osby",
+          "code": "1273",
+          "regionId": "CaRE_1nn_cSU"
+        },
+        {
+          "id": "BN7r_iPV_F9p",
+          "label": "Perstorp",
+          "code": "1275",
+          "regionId": "CaRE_1nn_cSU"
+        },
+        {
+          "id": "JARU_FAY_hTS",
+          "label": "Klippan",
+          "code": "1276",
+          "regionId": "CaRE_1nn_cSU"
+        },
+        {
+          "id": "tEv6_ktG_QQb",
+          "label": "Åstorp",
+          "code": "1277",
+          "regionId": "CaRE_1nn_cSU"
+        },
+        {
+          "id": "i8vK_odq_6ar",
+          "label": "Båstad",
+          "code": "1278",
+          "regionId": "CaRE_1nn_cSU"
+        },
+        {
+          "id": "oYPt_yRA_Smm",
+          "label": "Malmö",
+          "code": "1280",
+          "regionId": "CaRE_1nn_cSU"
+        },
+        {
+          "id": "muSY_tsR_vDZ",
+          "label": "Lund",
+          "code": "1281",
+          "regionId": "CaRE_1nn_cSU"
+        },
+        {
+          "id": "Yt5s_Vf9_rds",
+          "label": "Landskrona",
+          "code": "1282",
+          "regionId": "CaRE_1nn_cSU"
+        },
+        {
+          "id": "qj3q_oXH_MGR",
+          "label": "Helsingborg",
+          "code": "1283",
+          "regionId": "CaRE_1nn_cSU"
+        },
+        {
+          "id": "8QQ6_e95_a1d",
+          "label": "Höganäs",
+          "code": "1284",
+          "regionId": "CaRE_1nn_cSU"
+        },
+        {
+          "id": "gfCw_egj_1M4",
+          "label": "Eslöv",
+          "code": "1285",
+          "regionId": "CaRE_1nn_cSU"
+        },
+        {
+          "id": "hdYk_hnP_uju",
+          "label": "Ystad",
+          "code": "1286",
+          "regionId": "CaRE_1nn_cSU"
+        },
+        {
+          "id": "STvk_dra_M1X",
+          "label": "Trelleborg",
+          "code": "1287",
+          "regionId": "CaRE_1nn_cSU"
+        },
+        {
+          "id": "vrvW_sr8_1en",
+          "label": "Kristianstad",
+          "code": "1290",
+          "regionId": "CaRE_1nn_cSU"
+        },
+        {
+          "id": "dLxo_EpC_oPe",
+          "label": "Simrishamn",
+          "code": "1291",
+          "regionId": "CaRE_1nn_cSU"
+        },
+        {
+          "id": "pCuv_P5A_9oh",
+          "label": "Ängelholm",
+          "code": "1292",
+          "regionId": "CaRE_1nn_cSU"
+        },
+        {
+          "id": "bP5q_53x_aqJ",
+          "label": "Hässleholm",
+          "code": "1293",
+          "regionId": "CaRE_1nn_cSU"
+        }
+      ]
+    },
+    {
+      "id": "wjee_qH2_yb6",
+      "label": "Hallands län",
+      "code": "13",
+      "countryId": "i46j_HmG_v64",
+      "municipalities": [
+        {
+          "id": "3XMe_nGt_RcU",
+          "label": "Hylte",
+          "code": "1315",
+          "regionId": "wjee_qH2_yb6"
+        },
+        {
+          "id": "kUQB_KdK_kAh",
+          "label": "Halmstad",
+          "code": "1380",
+          "regionId": "wjee_qH2_yb6"
+        },
+        {
+          "id": "c1iL_rqh_Zja",
+          "label": "Laholm",
+          "code": "1381",
+          "regionId": "wjee_qH2_yb6"
+        },
+        {
+          "id": "qaJg_wMR_C8T",
+          "label": "Falkenberg",
+          "code": "1382",
+          "regionId": "wjee_qH2_yb6"
+        },
+        {
+          "id": "AkUx_yAq_kGr",
+          "label": "Varberg",
+          "code": "1383",
+          "regionId": "wjee_qH2_yb6"
+        },
+        {
+          "id": "3JKV_KSK_x6z",
+          "label": "Kungsbacka",
+          "code": "1384",
+          "regionId": "wjee_qH2_yb6"
+        }
+      ]
+    },
+    {
+      "id": "zdoY_6u5_Krt",
+      "label": "Västra Götalands län",
+      "code": "14",
+      "countryId": "i46j_HmG_v64",
+      "municipalities": [
+        {
+          "id": "dzWW_R3G_6Eh",
+          "label": "Härryda",
+          "code": "1401",
+          "regionId": "zdoY_6u5_Krt"
+        },
+        {
+          "id": "CCiR_sXa_BVW",
+          "label": "Partille",
+          "code": "1402",
+          "regionId": "zdoY_6u5_Krt"
+        },
+        {
+          "id": "Zjiv_rhk_oJK",
+          "label": "Öckerö",
+          "code": "1407",
+          "regionId": "zdoY_6u5_Krt"
+        },
+        {
+          "id": "wHrG_FBH_hoD",
+          "label": "Stenungsund",
+          "code": "1415",
+          "regionId": "zdoY_6u5_Krt"
+        },
+        {
+          "id": "TbL3_HmF_gnx",
+          "label": "Tjörn",
+          "code": "1419",
+          "regionId": "zdoY_6u5_Krt"
+        },
+        {
+          "id": "tmAp_ykH_N6k",
+          "label": "Orust",
+          "code": "1421",
+          "regionId": "zdoY_6u5_Krt"
+        },
+        {
+          "id": "aKkp_sEX_cVM",
+          "label": "Sotenäs",
+          "code": "1427",
+          "regionId": "zdoY_6u5_Krt"
+        },
+        {
+          "id": "96Dh_3sQ_RFb",
+          "label": "Munkedal",
+          "code": "1430",
+          "regionId": "zdoY_6u5_Krt"
+        },
+        {
+          "id": "qffn_qY4_DLk",
+          "label": "Tanum",
+          "code": "1435",
+          "regionId": "zdoY_6u5_Krt"
+        },
+        {
+          "id": "NMc9_oEm_yxy",
+          "label": "Dals-Ed",
+          "code": "1438",
+          "regionId": "zdoY_6u5_Krt"
+        },
+        {
+          "id": "kCHb_icw_W5E",
+          "label": "Färgelanda",
+          "code": "1439",
+          "regionId": "zdoY_6u5_Krt"
+        },
+        {
+          "id": "17Ug_Btv_mBr",
+          "label": "Ale",
+          "code": "1440",
+          "regionId": "zdoY_6u5_Krt"
+        },
+        {
+          "id": "yHV7_2Y6_zQx",
+          "label": "Lerum",
+          "code": "1441",
+          "regionId": "zdoY_6u5_Krt"
+        },
+        {
+          "id": "NfFx_5jj_ogg",
+          "label": "Vårgårda",
+          "code": "1442",
+          "regionId": "zdoY_6u5_Krt"
+        },
+        {
+          "id": "ypAQ_vTD_KLU",
+          "label": "Bollebygd",
+          "code": "1443",
+          "regionId": "zdoY_6u5_Krt"
+        },
+        {
+          "id": "ZNZy_Hh5_gSW",
+          "label": "Grästorp",
+          "code": "1444",
+          "regionId": "zdoY_6u5_Krt"
+        },
+        {
+          "id": "ZzEA_2Fg_Pt2",
+          "label": "Essunga",
+          "code": "1445",
+          "regionId": "zdoY_6u5_Krt"
+        },
+        {
+          "id": "e413_94L_hdh",
+          "label": "Karlsborg",
+          "code": "1446",
+          "regionId": "zdoY_6u5_Krt"
+        },
+        {
+          "id": "roiB_uVV_4Cj",
+          "label": "Gullspång",
+          "code": "1447",
+          "regionId": "zdoY_6u5_Krt"
+        },
+        {
+          "id": "SEje_LdC_9qN",
+          "label": "Tranemo",
+          "code": "1452",
+          "regionId": "zdoY_6u5_Krt"
+        },
+        {
+          "id": "hejM_Jct_XJk",
+          "label": "Bengtsfors",
+          "code": "1460",
+          "regionId": "zdoY_6u5_Krt"
+        },
+        {
+          "id": "tt1B_7rH_vhG",
+          "label": "Mellerud",
+          "code": "1461",
+          "regionId": "zdoY_6u5_Krt"
+        },
+        {
+          "id": "YQcE_SNB_Tv3",
+          "label": "Lilla Edet",
+          "code": "1462",
+          "regionId": "zdoY_6u5_Krt"
+        },
+        {
+          "id": "7HAb_9or_eFM",
+          "label": "Mark",
+          "code": "1463",
+          "regionId": "zdoY_6u5_Krt"
+        },
+        {
+          "id": "rZWC_pXf_ySZ",
+          "label": "Svenljunga",
+          "code": "1465",
+          "regionId": "zdoY_6u5_Krt"
+        },
+        {
+          "id": "J116_VFs_cg6",
+          "label": "Herrljunga",
+          "code": "1466",
+          "regionId": "zdoY_6u5_Krt"
+        },
+        {
+          "id": "fbHM_yhA_BqS",
+          "label": "Vara",
+          "code": "1470",
+          "regionId": "zdoY_6u5_Krt"
+        },
+        {
+          "id": "txzq_PQY_FGi",
+          "label": "Götene",
+          "code": "1471",
+          "regionId": "zdoY_6u5_Krt"
+        },
+        {
+          "id": "aLFZ_NHw_atB",
+          "label": "Tibro",
+          "code": "1472",
+          "regionId": "zdoY_6u5_Krt"
+        },
+        {
+          "id": "a15F_gAH_pn6",
+          "label": "Töreboda",
+          "code": "1473",
+          "regionId": "zdoY_6u5_Krt"
+        },
+        {
+          "id": "PVZL_BQT_XtL",
+          "label": "Göteborg",
+          "code": "1480",
+          "regionId": "zdoY_6u5_Krt"
+        },
+        {
+          "id": "mc45_ki9_Bv3",
+          "label": "Mölndal",
+          "code": "1481",
+          "regionId": "zdoY_6u5_Krt"
+        },
+        {
+          "id": "ZkZf_HbK_Mcr",
+          "label": "Kungälv",
+          "code": "1482",
+          "regionId": "zdoY_6u5_Krt"
+        },
+        {
+          "id": "z2cX_rjC_zFo",
+          "label": "Lysekil",
+          "code": "1484",
+          "regionId": "zdoY_6u5_Krt"
+        },
+        {
+          "id": "xQc2_SzA_rHK",
+          "label": "Uddevalla",
+          "code": "1485",
+          "regionId": "zdoY_6u5_Krt"
+        },
+        {
+          "id": "PAxT_FLT_3Kq",
+          "label": "Strömstad",
+          "code": "1486",
+          "regionId": "zdoY_6u5_Krt"
+        },
+        {
+          "id": "THif_q6H_MjG",
+          "label": "Vänersborg",
+          "code": "1487",
+          "regionId": "zdoY_6u5_Krt"
+        },
+        {
+          "id": "CSy8_41F_YvX",
+          "label": "Trollhättan",
+          "code": "1488",
+          "regionId": "zdoY_6u5_Krt"
+        },
+        {
+          "id": "UQ75_1eU_jaC",
+          "label": "Alingsås",
+          "code": "1489",
+          "regionId": "zdoY_6u5_Krt"
+        },
+        {
+          "id": "TpRZ_bFL_jhL",
+          "label": "Borås",
+          "code": "1490",
+          "regionId": "zdoY_6u5_Krt"
+        },
+        {
+          "id": "an4a_8t2_Zpd",
+          "label": "Ulricehamn",
+          "code": "1491",
+          "regionId": "zdoY_6u5_Krt"
+        },
+        {
+          "id": "M1UC_Cnf_r7g",
+          "label": "Åmål",
+          "code": "1492",
+          "regionId": "zdoY_6u5_Krt"
+        },
+        {
+          "id": "Lzpu_thX_Wpa",
+          "label": "Mariestad",
+          "code": "1493",
+          "regionId": "zdoY_6u5_Krt"
+        },
+        {
+          "id": "FN1Y_asc_D8y",
+          "label": "Lidköping",
+          "code": "1494",
+          "regionId": "zdoY_6u5_Krt"
+        },
+        {
+          "id": "k1SK_gxg_dW4",
+          "label": "Skara",
+          "code": "1495",
+          "regionId": "zdoY_6u5_Krt"
+        },
+        {
+          "id": "fqAy_4ji_Lz2",
+          "label": "Skövde",
+          "code": "1496",
+          "regionId": "zdoY_6u5_Krt"
+        },
+        {
+          "id": "YbFS_34r_K2v",
+          "label": "Hjo",
+          "code": "1497",
+          "regionId": "zdoY_6u5_Krt"
+        },
+        {
+          "id": "Zsf5_vpP_Bs4",
+          "label": "Tidaholm",
+          "code": "1498",
+          "regionId": "zdoY_6u5_Krt"
+        },
+        {
+          "id": "ZySF_gif_zE4",
+          "label": "Falköping",
+          "code": "1499",
+          "regionId": "zdoY_6u5_Krt"
+        }
+      ]
+    },
+    {
+      "id": "EVVp_h6U_GSZ",
+      "label": "Värmlands län",
+      "code": "17",
+      "countryId": "i46j_HmG_v64",
+      "municipalities": [
+        {
+          "id": "ocMw_Rz5_B1L",
+          "label": "Kil",
+          "code": "1715",
+          "regionId": "EVVp_h6U_GSZ"
+        },
+        {
+          "id": "N5HQ_hfp_7Rm",
+          "label": "Eda",
+          "code": "1730",
+          "regionId": "EVVp_h6U_GSZ"
+        },
+        {
+          "id": "hQdb_zn9_Sok",
+          "label": "Torsby",
+          "code": "1737",
+          "regionId": "EVVp_h6U_GSZ"
+        },
+        {
+          "id": "mPt5_3QD_LTM",
+          "label": "Storfors",
+          "code": "1760",
+          "regionId": "EVVp_h6U_GSZ"
+        },
+        {
+          "id": "x5qW_BXr_aut",
+          "label": "Hammarö",
+          "code": "1761",
+          "regionId": "EVVp_h6U_GSZ"
+        },
+        {
+          "id": "x73h_7rW_mXN",
+          "label": "Munkfors",
+          "code": "1762",
+          "regionId": "EVVp_h6U_GSZ"
+        },
+        {
+          "id": "xnEt_JN3_GkA",
+          "label": "Forshaga",
+          "code": "1763",
+          "regionId": "EVVp_h6U_GSZ"
+        },
+        {
+          "id": "PSNt_P95_x6q",
+          "label": "Grums",
+          "code": "1764",
+          "regionId": "EVVp_h6U_GSZ"
+        },
+        {
+          "id": "ymBu_aFc_QJA",
+          "label": "Årjäng",
+          "code": "1765",
+          "regionId": "EVVp_h6U_GSZ"
+        },
+        {
+          "id": "oqNH_cnJ_Tdi",
+          "label": "Sunne",
+          "code": "1766",
+          "regionId": "EVVp_h6U_GSZ"
+        },
+        {
+          "id": "hRDj_PoV_sFU",
+          "label": "Karlstad",
+          "code": "1780",
+          "regionId": "EVVp_h6U_GSZ"
+        },
+        {
+          "id": "SVQS_uwJ_m2B",
+          "label": "Kristinehamn",
+          "code": "1781",
+          "regionId": "EVVp_h6U_GSZ"
+        },
+        {
+          "id": "UXir_vKD_FuW",
+          "label": "Filipstad",
+          "code": "1782",
+          "regionId": "EVVp_h6U_GSZ"
+        },
+        {
+          "id": "qk9a_g5U_sAH",
+          "label": "Hagfors",
+          "code": "1783",
+          "regionId": "EVVp_h6U_GSZ"
+        },
+        {
+          "id": "yGue_F32_wev",
+          "label": "Arvika",
+          "code": "1784",
+          "regionId": "EVVp_h6U_GSZ"
+        },
+        {
+          "id": "wmxQ_Guc_dsy",
+          "label": "Säffle",
+          "code": "1785",
+          "regionId": "EVVp_h6U_GSZ"
+        }
+      ]
+    },
+    {
+      "id": "xTCk_nT5_Zjm",
+      "label": "Örebro län",
+      "code": "18",
+      "countryId": "i46j_HmG_v64",
+      "municipalities": [
+        {
+          "id": "yaHU_E7z_YnE",
+          "label": "Lekeberg",
+          "code": "1814",
+          "regionId": "xTCk_nT5_Zjm"
+        },
+        {
+          "id": "oYEQ_m8Q_unY",
+          "label": "Laxå",
+          "code": "1860",
+          "regionId": "xTCk_nT5_Zjm"
+        },
+        {
+          "id": "Ak9V_rby_yYS",
+          "label": "Hallsberg",
+          "code": "1861",
+          "regionId": "xTCk_nT5_Zjm"
+        },
+        {
+          "id": "pvzC_muj_rcq",
+          "label": "Degerfors",
+          "code": "1862",
+          "regionId": "xTCk_nT5_Zjm"
+        },
+        {
+          "id": "sCbY_r36_xhs",
+          "label": "Hällefors",
+          "code": "1863",
+          "regionId": "xTCk_nT5_Zjm"
+        },
+        {
+          "id": "eF2n_714_hSU",
+          "label": "Ljusnarsberg",
+          "code": "1864",
+          "regionId": "xTCk_nT5_Zjm"
+        },
+        {
+          "id": "kuMn_feU_hXx",
+          "label": "Örebro",
+          "code": "1880",
+          "regionId": "xTCk_nT5_Zjm"
+        },
+        {
+          "id": "viCA_36P_pQp",
+          "label": "Kumla",
+          "code": "1881",
+          "regionId": "xTCk_nT5_Zjm"
+        },
+        {
+          "id": "dbF7_Ecz_CWF",
+          "label": "Askersund",
+          "code": "1882",
+          "regionId": "xTCk_nT5_Zjm"
+        },
+        {
+          "id": "wgJm_upX_z5W",
+          "label": "Karlskoga",
+          "code": "1883",
+          "regionId": "xTCk_nT5_Zjm"
+        },
+        {
+          "id": "WFXN_hsU_gmx",
+          "label": "Nora",
+          "code": "1884",
+          "regionId": "xTCk_nT5_Zjm"
+        },
+        {
+          "id": "JQE9_189_Ska",
+          "label": "Lindesberg",
+          "code": "1885",
+          "regionId": "xTCk_nT5_Zjm"
+        }
+      ]
+    },
+    {
+      "id": "G6DV_fKE_Viz",
+      "label": "Västmanlands län",
+      "code": "19",
+      "countryId": "i46j_HmG_v64",
+      "municipalities": [
+        {
+          "id": "Nufj_vmt_VrH",
+          "label": "Skinnskatteberg",
+          "code": "1904",
+          "regionId": "G6DV_fKE_Viz"
+        },
+        {
+          "id": "jfD3_Hdg_UhT",
+          "label": "Surahammar",
+          "code": "1907",
+          "regionId": "G6DV_fKE_Viz"
+        },
+        {
+          "id": "Fac5_h7a_UoM",
+          "label": "Kungsör",
+          "code": "1960",
+          "regionId": "G6DV_fKE_Viz"
+        },
+        {
+          "id": "oXYf_HmD_ddE",
+          "label": "Hallstahammar",
+          "code": "1961",
+          "regionId": "G6DV_fKE_Viz"
+        },
+        {
+          "id": "jbVe_Cps_vtd",
+          "label": "Norberg",
+          "code": "1962",
+          "regionId": "G6DV_fKE_Viz"
+        },
+        {
+          "id": "8deT_FRF_2SP",
+          "label": "Västerås",
+          "code": "1980",
+          "regionId": "G6DV_fKE_Viz"
+        },
+        {
+          "id": "dAen_yTK_tqz",
+          "label": "Sala",
+          "code": "1981",
+          "regionId": "G6DV_fKE_Viz"
+        },
+        {
+          "id": "7D9G_yrX_AGJ",
+          "label": "Fagersta",
+          "code": "1982",
+          "regionId": "G6DV_fKE_Viz"
+        },
+        {
+          "id": "4Taz_AuG_tSm",
+          "label": "Köping",
+          "code": "1983",
+          "regionId": "G6DV_fKE_Viz"
+        },
+        {
+          "id": "Jkyb_5MQ_7pB",
+          "label": "Arboga",
+          "code": "1984",
+          "regionId": "G6DV_fKE_Viz"
+        }
+      ]
+    },
+    {
+      "id": "oDpK_oZ2_WYt",
+      "label": "Dalarnas län",
+      "code": "20",
+      "countryId": "i46j_HmG_v64",
+      "municipalities": [
+        {
+          "id": "4eS9_HX1_M7V",
+          "label": "Vansbro",
+          "code": "2021",
+          "regionId": "oDpK_oZ2_WYt"
+        },
+        {
+          "id": "FPCd_poj_3tq",
+          "label": "Malung-Sälen",
+          "code": "2023",
+          "regionId": "oDpK_oZ2_WYt"
+        },
+        {
+          "id": "Nn7p_W3Z_y68",
+          "label": "Gagnef",
+          "code": "2026",
+          "regionId": "oDpK_oZ2_WYt"
+        },
+        {
+          "id": "7Zsu_ant_gcn",
+          "label": "Leksand",
+          "code": "2029",
+          "regionId": "oDpK_oZ2_WYt"
+        },
+        {
+          "id": "Jy3D_2ux_dg8",
+          "label": "Rättvik",
+          "code": "2031",
+          "regionId": "oDpK_oZ2_WYt"
+        },
+        {
+          "id": "CRyF_5Jg_4ht",
+          "label": "Orsa",
+          "code": "2034",
+          "regionId": "oDpK_oZ2_WYt"
+        },
+        {
+          "id": "cZtt_qGo_oBr",
+          "label": "Älvdalen",
+          "code": "2039",
+          "regionId": "oDpK_oZ2_WYt"
+        },
+        {
+          "id": "5zZX_8FH_Sbq",
+          "label": "Smedjebacken",
+          "code": "2061",
+          "regionId": "oDpK_oZ2_WYt"
+        },
+        {
+          "id": "UGcC_kYx_fTs",
+          "label": "Mora",
+          "code": "2062",
+          "regionId": "oDpK_oZ2_WYt"
+        },
+        {
+          "id": "N1wJ_Cuu_7Cs",
+          "label": "Falun",
+          "code": "2080",
+          "regionId": "oDpK_oZ2_WYt"
+        },
+        {
+          "id": "cpya_jJg_pGp",
+          "label": "Borlänge",
+          "code": "2081",
+          "regionId": "oDpK_oZ2_WYt"
+        },
+        {
+          "id": "c3Zx_jBf_CqF",
+          "label": "Säter",
+          "code": "2082",
+          "regionId": "oDpK_oZ2_WYt"
+        },
+        {
+          "id": "DE9u_V4K_Z1S",
+          "label": "Hedemora",
+          "code": "2083",
+          "regionId": "oDpK_oZ2_WYt"
+        },
+        {
+          "id": "Szbq_2fg_ydQ",
+          "label": "Avesta",
+          "code": "2084",
+          "regionId": "oDpK_oZ2_WYt"
+        },
+        {
+          "id": "Ny2b_2bo_7EL",
+          "label": "Ludvika",
+          "code": "2085",
+          "regionId": "oDpK_oZ2_WYt"
+        }
+      ]
+    },
+    {
+      "id": "zupA_8Nt_xcD",
+      "label": "Gävleborgs län",
+      "code": "21",
+      "countryId": "i46j_HmG_v64",
+      "municipalities": [
+        {
+          "id": "GEvW_wKy_A9H",
+          "label": "Ockelbo",
+          "code": "2101",
+          "regionId": "zupA_8Nt_xcD"
+        },
+        {
+          "id": "yuNd_3bg_ttc",
+          "label": "Hofors",
+          "code": "2104",
+          "regionId": "zupA_8Nt_xcD"
+        },
+        {
+          "id": "JPSe_mUQ_NDs",
+          "label": "Ovanåker",
+          "code": "2121",
+          "regionId": "zupA_8Nt_xcD"
+        },
+        {
+          "id": "fFeF_RCz_Tm5",
+          "label": "Nordanstig",
+          "code": "2132",
+          "regionId": "zupA_8Nt_xcD"
+        },
+        {
+          "id": "63iQ_V6F_REB",
+          "label": "Ljusdal",
+          "code": "2161",
+          "regionId": "zupA_8Nt_xcD"
+        },
+        {
+          "id": "qk8Y_2b6_82D",
+          "label": "Gävle",
+          "code": "2180",
+          "regionId": "zupA_8Nt_xcD"
+        },
+        {
+          "id": "BbdN_xLB_k6s",
+          "label": "Sandviken",
+          "code": "2181",
+          "regionId": "zupA_8Nt_xcD"
+        },
+        {
+          "id": "JauG_nz5_7mu",
+          "label": "Söderhamn",
+          "code": "2182",
+          "regionId": "zupA_8Nt_xcD"
+        },
+        {
+          "id": "KxjG_ig5_exF",
+          "label": "Bollnäs",
+          "code": "2183",
+          "regionId": "zupA_8Nt_xcD"
+        },
+        {
+          "id": "Utks_mwF_axY",
+          "label": "Hudiksvall",
+          "code": "2184",
+          "regionId": "zupA_8Nt_xcD"
+        }
+      ]
+    },
+    {
+      "id": "NvUF_SP1_1zo",
+      "label": "Västernorrlands län",
+      "code": "22",
+      "countryId": "i46j_HmG_v64",
+      "municipalities": [
+        {
+          "id": "swVa_cyS_EMN",
+          "label": "Ånge",
+          "code": "2260",
+          "regionId": "NvUF_SP1_1zo"
+        },
+        {
+          "id": "oJ8D_rq6_kjt",
+          "label": "Timrå",
+          "code": "2262",
+          "regionId": "NvUF_SP1_1zo"
+        },
+        {
+          "id": "uYRx_AdM_r4A",
+          "label": "Härnösand",
+          "code": "2280",
+          "regionId": "NvUF_SP1_1zo"
+        },
+        {
+          "id": "dJbx_FWY_tK6",
+          "label": "Sundsvall",
+          "code": "2281",
+          "regionId": "NvUF_SP1_1zo"
+        },
+        {
+          "id": "yR8g_7Jz_HBZ",
+          "label": "Kramfors",
+          "code": "2282",
+          "regionId": "NvUF_SP1_1zo"
+        },
+        {
+          "id": "v5y4_YPe_TMZ",
+          "label": "Sollefteå",
+          "code": "2283",
+          "regionId": "NvUF_SP1_1zo"
+        },
+        {
+          "id": "zBmE_n6s_MnQ",
+          "label": "Örnsköldsvik",
+          "code": "2284",
+          "regionId": "NvUF_SP1_1zo"
+        }
+      ]
+    },
+    {
+      "id": "65Ms_7r1_RTG",
+      "label": "Jämtlands län",
+      "code": "23",
+      "countryId": "i46j_HmG_v64",
+      "municipalities": [
+        {
+          "id": "Voto_egJ_FZP",
+          "label": "Ragunda",
+          "code": "2303",
+          "regionId": "65Ms_7r1_RTG"
+        },
+        {
+          "id": "eNSc_Nj1_CDP",
+          "label": "Bräcke",
+          "code": "2305",
+          "regionId": "65Ms_7r1_RTG"
+        },
+        {
+          "id": "yurW_aLE_4ga",
+          "label": "Krokom",
+          "code": "2309",
+          "regionId": "65Ms_7r1_RTG"
+        },
+        {
+          "id": "ppjq_Eci_Wz9",
+          "label": "Strömsund",
+          "code": "2313",
+          "regionId": "65Ms_7r1_RTG"
+        },
+        {
+          "id": "D7ax_CXP_6r1",
+          "label": "Åre",
+          "code": "2321",
+          "regionId": "65Ms_7r1_RTG"
+        },
+        {
+          "id": "gRNJ_hVW_Gpg",
+          "label": "Berg",
+          "code": "2326",
+          "regionId": "65Ms_7r1_RTG"
+        },
+        {
+          "id": "j35Q_VKL_NiM",
+          "label": "Härjedalen",
+          "code": "2361",
+          "regionId": "65Ms_7r1_RTG"
+        },
+        {
+          "id": "Vt7P_856_WZS",
+          "label": "Östersund",
+          "code": "2380",
+          "regionId": "65Ms_7r1_RTG"
+        }
+      ]
+    },
+    {
+      "id": "g5Tt_CAV_zBd",
+      "label": "Västerbottens län",
+      "code": "24",
+      "countryId": "i46j_HmG_v64",
+      "municipalities": [
+        {
+          "id": "wMab_4Zs_wpM",
+          "label": "Nordmaling",
+          "code": "2401",
+          "regionId": "g5Tt_CAV_zBd"
+        },
+        {
+          "id": "vQkf_tw2_CmR",
+          "label": "Bjurholm",
+          "code": "2403",
+          "regionId": "g5Tt_CAV_zBd"
+        },
+        {
+          "id": "izT6_zWu_tta",
+          "label": "Vindeln",
+          "code": "2404",
+          "regionId": "g5Tt_CAV_zBd"
+        },
+        {
+          "id": "p8Mv_377_bxp",
+          "label": "Robertsfors",
+          "code": "2409",
+          "regionId": "g5Tt_CAV_zBd"
+        },
+        {
+          "id": "XmpG_vPQ_K7T",
+          "label": "Norsjö",
+          "code": "2417",
+          "regionId": "g5Tt_CAV_zBd"
+        },
+        {
+          "id": "7sHJ_YCE_5Zv",
+          "label": "Malå",
+          "code": "2418",
+          "regionId": "g5Tt_CAV_zBd"
+        },
+        {
+          "id": "gQgT_BAk_fMu",
+          "label": "Storuman",
+          "code": "2421",
+          "regionId": "g5Tt_CAV_zBd"
+        },
+        {
+          "id": "VM7L_yJK_Doo",
+          "label": "Sorsele",
+          "code": "2422",
+          "regionId": "g5Tt_CAV_zBd"
+        },
+        {
+          "id": "tSkf_Tbn_rHk",
+          "label": "Dorotea",
+          "code": "2425",
+          "regionId": "g5Tt_CAV_zBd"
+        },
+        {
+          "id": "utQc_6xq_Dfm",
+          "label": "Vännäs",
+          "code": "2460",
+          "regionId": "g5Tt_CAV_zBd"
+        },
+        {
+          "id": "tUnW_mFo_Hvi",
+          "label": "Vilhelmina",
+          "code": "2462",
+          "regionId": "g5Tt_CAV_zBd"
+        },
+        {
+          "id": "xLdL_tMA_JJv",
+          "label": "Åsele",
+          "code": "2463",
+          "regionId": "g5Tt_CAV_zBd"
+        },
+        {
+          "id": "QiGt_BLu_amP",
+          "label": "Umeå",
+          "code": "2480",
+          "regionId": "g5Tt_CAV_zBd"
+        },
+        {
+          "id": "7rpN_naz_3Uz",
+          "label": "Lycksele",
+          "code": "2481",
+          "regionId": "g5Tt_CAV_zBd"
+        },
+        {
+          "id": "kicB_LgH_2Dk",
+          "label": "Skellefteå",
+          "code": "2482",
+          "regionId": "g5Tt_CAV_zBd"
+        }
+      ]
+    },
+    {
+      "id": "9hXe_F4g_eTG",
+      "label": "Norrbottens län",
+      "code": "25",
+      "countryId": "i46j_HmG_v64",
+      "municipalities": [
+        {
+          "id": "A5WX_XVo_Zt6",
+          "label": "Arvidsjaur",
+          "code": "2505",
+          "regionId": "9hXe_F4g_eTG"
+        },
+        {
+          "id": "vkQW_GB6_MNk",
+          "label": "Arjeplog",
+          "code": "2506",
+          "regionId": "9hXe_F4g_eTG"
+        },
+        {
+          "id": "mp6j_2b6_1bz",
+          "label": "Jokkmokk",
+          "code": "2510",
+          "regionId": "9hXe_F4g_eTG"
+        },
+        {
+          "id": "n5Sq_xxo_QWL",
+          "label": "Överkalix",
+          "code": "2513",
+          "regionId": "9hXe_F4g_eTG"
+        },
+        {
+          "id": "cUyN_C9V_HLU",
+          "label": "Kalix",
+          "code": "2514",
+          "regionId": "9hXe_F4g_eTG"
+        },
+        {
+          "id": "ehMP_onv_Chk",
+          "label": "Övertorneå",
+          "code": "2518",
+          "regionId": "9hXe_F4g_eTG"
+        },
+        {
+          "id": "dHMF_72G_4NM",
+          "label": "Pajala",
+          "code": "2521",
+          "regionId": "9hXe_F4g_eTG"
+        },
+        {
+          "id": "6R2u_zkb_uoS",
+          "label": "Gällivare",
+          "code": "2523",
+          "regionId": "9hXe_F4g_eTG"
+        },
+        {
+          "id": "14WF_zh1_W3y",
+          "label": "Älvsbyn",
+          "code": "2560",
+          "regionId": "9hXe_F4g_eTG"
+        },
+        {
+          "id": "CXbY_gui_14v",
+          "label": "Luleå",
+          "code": "2580",
+          "regionId": "9hXe_F4g_eTG"
+        },
+        {
+          "id": "umej_bP2_PpK",
+          "label": "Piteå",
+          "code": "2581",
+          "regionId": "9hXe_F4g_eTG"
+        },
+        {
+          "id": "y4NQ_tnB_eVd",
+          "label": "Boden",
+          "code": "2582",
+          "regionId": "9hXe_F4g_eTG"
+        },
+        {
+          "id": "tfRE_hXa_eq7",
+          "label": "Haparanda",
+          "code": "2583",
+          "regionId": "9hXe_F4g_eTG"
+        },
+        {
+          "id": "biN6_UiL_Qob",
+          "label": "Kiruna",
+          "code": "2584",
+          "regionId": "9hXe_F4g_eTG"
+        }
+      ]
+    }
+  ]
+}

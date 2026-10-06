@@ -7,3 +7,7 @@
 *.sh text eol=lf
 *.ico binary
 *.png binary
+*.json text eol=lf
+*.jsonl text eol=lf
+*.md text eol=lf
+*.yml text eol=lf

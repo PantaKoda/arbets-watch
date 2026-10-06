@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>ArbetsWatch.Core</RootNamespace>
+    <!-- The release RID, so locked restore matches the self-contained win-x64 publish (SQLite native assets). -->
+    <RuntimeIdentifiers>win-x64</RuntimeIdentifiers>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Data.Sqlite" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Places\places.json" LogicalName="ArbetsWatch.Core.Places.places.json" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="ArbetsWatch.Core.Tests" />
+  </ItemGroup>
+</Project>
