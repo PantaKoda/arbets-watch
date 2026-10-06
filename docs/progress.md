@@ -34,7 +34,9 @@ dotnet test ArbetsWatch.slnx                       → 41 passed
 dotnet format ArbetsWatch.slnx --verify-no-changes → ok
 ```
 
-The CI workflow has not run yet; there is no GitHub remote.
+CI on GitHub (`PantaKoda/arbets-watch`, PR #2): `build-test-windows`, `core-tests-linux` and `format` passed after the `win-x64` RID fix for the publish step. SDK pinned to 10.0.401 with `latestPatch`, so analyzer and format rules move only with a deliberate SDK bump.
+
+Review fixes: All Sweden includes ads without a country; `AdFilterSql` is two-valued and composable (negation and two filters per command are tested); an active ad without `timestamp` is applied as the newest state instead of being ordered by its publication date; unreadable `removed_date` text is kept; ambiguous removal dates take the later instant.
 
 ## M2 — Persistence
 
@@ -43,6 +45,8 @@ The CI workflow has not run yet; there is no GitHub remote.
 - `SourceOrder`: incoming states strictly older than the stored one are rejected; ad vs ad in milliseconds, anything involving a removal in whole seconds; ties apply.
 - Unread is decided once, when an ID is first seen after the baseline, from the filter in effect then. Edits, re-publication, filter expansion and re-matching never create unread markers.
 - `AppPreferences` (filter, interval 1–60 min, window, theme, transparency, always-on-top, pause) stored as one JSON value; unreadable values fall back to defaults. `AppPaths` resolves the per-platform data directory.
+
+Review fixes (PR #3): `ad_state.first_seen_utc` is the first sighting *as an ad* (null while an ID is known only from a removal), so an ID first seen as a removal still becomes unread when it appears; a completed snapshot is authoritative for membership (a re-published ad with an older timestamp is restored); activation refuses a snapshot with fewer than half the cached ads (`SnapshotRejectedException`, cache and checkpoint kept); expired ads never become unread on activation; `synchronous = NORMAL` is set on every connection; a stored filter without worktime falls back to all categories.
 
 Validation (local, temporary SQLite files): restart persistence, rollback on failure and cancellation, identical replay, older-state rejection, removal tie, unknown-ID removal, re-publication, unread rules, filter expansion, location change, mark-matching-read scope, expiry without removal, empty interval, 90-day pruning, newer-schema refusal, preferences round trip.
 

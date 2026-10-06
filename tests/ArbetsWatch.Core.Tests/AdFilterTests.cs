@@ -49,6 +49,15 @@ public sealed class AdFilterTests
     }
 
     [Fact]
+    public void All_sweden_includes_ads_without_a_country()
+    {
+        // Not observed in the snapshot (docs/api-contracts.md), but All Sweden must never show less than a län.
+        Assert.True(AdMatcher.Matches(AdFilter.Default, Fixtures.Ad("1", null, Halland, countryId: null)));
+        Assert.True(AdMatcher.Matches(AdFilter.Default, Fixtures.Ad("2", null, null, countryId: null)));
+        Assert.True(AdMatcher.Matches(new AdFilter { RegionIds = Set(Halland) }, Fixtures.Ad("3", null, Halland, countryId: null)));
+    }
+
+    [Fact]
     public void Empty_geography_matches_nothing()
     {
         var none = new AdFilter { Worktime = WorktimeSet.All };
@@ -140,8 +149,32 @@ public sealed class AdFilterTests
 
                 actual.Sort(StringComparer.Ordinal);
                 Assert.Equal(expected, actual);
+
+                // Negation is the exact complement, also for rows with NULL location or worktime columns.
+                using var negated = connection.CreateCommand();
+                negated.CommandText = $"SELECT id FROM ad_summary s WHERE NOT {AdFilterSql.Where(filter, negated)}";
+                Assert.Equal(ads.Count - expected.Count, Count(negated));
             }
         }
+
+        // Two filters on one command keep their own parameters: "matches new and not old".
+        var oldFilter = new AdFilter { MunicipalityIds = Set(Goteborg) };
+        var newFilter = new AdFilter { MunicipalityIds = Set(Goteborg, Molndal), RegionIds = Set(Halland) };
+        using var both = connection.CreateCommand();
+        both.CommandText = $"SELECT id FROM ad_summary s WHERE {AdFilterSql.Where(newFilter, both)} AND NOT {AdFilterSql.Where(oldFilter, both)}";
+        Assert.Equal(ads.Count(a => AdMatcher.Matches(newFilter, a) && !AdMatcher.Matches(oldFilter, a)), Count(both));
+    }
+
+    private static int Count(SqliteCommand command)
+    {
+        var n = 0;
+        using var reader = command.ExecuteReader();
+        while (reader.Read())
+        {
+            n++;
+        }
+
+        return n;
     }
 
     [Fact]
