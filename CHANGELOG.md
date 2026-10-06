@@ -1,5 +1,9 @@
 # Changelog
 
+## [Unreleased]
+
+- Accent colors, as in Repo Watch: Settings → Appearance → Accent offers Station cyan (default), Nebula violet, Ion blue and Plasma magenta. The accent colors the frame, highlights and selected chips; status colors never change.
+
 ## [0.1.0] - 2026-10-06
 
 First version: a Windows tray app that keeps a local copy of the ads currently published on Platsbanken and shows them filtered by place and worktime.

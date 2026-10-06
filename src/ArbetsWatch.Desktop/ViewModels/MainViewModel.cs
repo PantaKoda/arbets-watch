@@ -12,6 +12,7 @@ using ArbetsWatch.Core.Time;
 using ArbetsWatch.Core.Updates;
 using ArbetsWatch.Desktop.Controls;
 using ArbetsWatch.Desktop.Platform;
+using ArbetsWatch.Desktop.Presentation;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -228,6 +229,11 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     public partial bool Paused { get; set; }
 
     public string[] ThemeOptions { get; } = ["System", "Light", "Dark"];
+
+    public IReadOnlyList<AccentPreset> Accents => AccentPalette.Presets;
+
+    [ObservableProperty]
+    public partial AccentPreset SelectedAccent { get; set; } = AccentPalette.Presets[0];
 
     public string DataDirectory { get; }
 
@@ -474,6 +480,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         ThemeIndex = (int)p.Theme;
         Transparent = p.Transparent;
         AlwaysOnTop = p.AlwaysOnTop;
+        SelectedAccent = AccentPalette.Find(p.Accent);
         Paused = p.MonitoringPaused;
         _syncingSettings = false;
     }
@@ -495,6 +502,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     partial void OnTransparentChanged(bool value) => UpdateAppearance(_preferences with { Transparent = value });
 
     partial void OnAlwaysOnTopChanged(bool value) => UpdateAppearance(_preferences with { AlwaysOnTop = value });
+
+    partial void OnSelectedAccentChanged(AccentPreset value) => UpdateAppearance(_preferences with { Accent = value?.Hex });
 
     partial void OnPausedChanged(bool value)
     {

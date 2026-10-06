@@ -5,6 +5,7 @@ using ArbetsWatch.Core.Storage;
 using ArbetsWatch.Core.Sync;
 using ArbetsWatch.Core.Updates;
 using ArbetsWatch.Desktop.Platform;
+using ArbetsWatch.Desktop.Presentation;
 using ArbetsWatch.Desktop.ViewModels;
 using ArbetsWatch.Desktop.Views;
 using Avalonia;
@@ -174,6 +175,7 @@ public sealed class AppShell : IShell, IDisposable
         _preferences = preferences;
         if (_application is not null)
         {
+            AccentPalette.Apply(_application, preferences.Accent);
             _application.RequestedThemeVariant = preferences.Theme switch
             {
                 ThemePreference.Light => ThemeVariant.Light,
