@@ -61,9 +61,13 @@ public static class AdMatcher
         MatchesGeography(filter, ad.CountryId, ad.RegionId, ad.MunicipalityId) &&
         MatchesWorktime(filter.Worktime, ad.WorktimeId);
 
+    /// <summary>
+    /// All Sweden means every ad not placed abroad: Swedish country, or no country at all (JobStream is
+    /// Arbetsförmedlingen's service; ads abroad always carry their foreign country).
+    /// </summary>
     public static bool MatchesGeography(AdFilter filter, string? countryId, string? regionId, string? municipalityId)
     {
-        if (filter.AllSweden && countryId == PlaceCatalog.SwedenId)
+        if (filter.AllSweden && (countryId is null || countryId == PlaceCatalog.SwedenId))
         {
             return true;
         }

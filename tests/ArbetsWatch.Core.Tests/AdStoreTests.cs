@@ -150,11 +150,71 @@ public sealed class AdStoreTests
         using var temp = new TempStore();
         await temp.BaselineAsync();
         await temp.Store.CommitBatchAsync([Fixtures.Ad("1", changed: T0.AddMinutes(1))], AdFilter.Default, T0.AddMinutes(2), T0.AddMinutes(2));
+        await temp.Store.MarkReadAsync("1");
         await temp.Store.CommitBatchAsync([Fixtures.Removal("1", T0.AddMinutes(3))], AdFilter.Default, T0.AddMinutes(4), T0.AddMinutes(4));
 
         await temp.Store.CommitBatchAsync([Fixtures.Ad("1", changed: T0.AddMinutes(5))], AdFilter.Default, T0.AddMinutes(6), T0.AddMinutes(6));
 
-        Assert.True((await temp.RowsAsync())["1"].Unread);
+        Assert.False((await temp.RowsAsync())["1"].Unread);
+    }
+
+    [Fact]
+    public async Task Id_first_seen_as_a_removal_becomes_unread_when_it_appears_as_an_ad()
+    {
+        using var temp = new TempStore();
+        await temp.BaselineAsync();
+        await temp.Store.CommitBatchAsync([Fixtures.Removal("9", T0.AddMinutes(1))], AdFilter.Default, T0.AddMinutes(2), T0.AddMinutes(2));
+
+        var result = await temp.Store.CommitBatchAsync([Fixtures.Ad("9", changed: T0.AddMinutes(3))], AdFilter.Default, T0.AddMinutes(4), T0.AddMinutes(4));
+
+        Assert.Equal(1, result.NewUnread);
+        Assert.True((await temp.RowsAsync())["9"].Unread);
+    }
+
+    [Fact]
+    public async Task Snapshot_is_authoritative_and_restores_a_republished_ad_with_an_older_timestamp()
+    {
+        using var temp = new TempStore();
+        await temp.BaselineAsync(Fixtures.Ad("1", changed: T0.AddMinutes(-10)));
+        await temp.Store.CommitBatchAsync([Fixtures.Removal("1", T0.AddMinutes(1))], AdFilter.Default, T0.AddMinutes(2), T0.AddMinutes(2));
+
+        // Re-published keeping its old timestamp, older than the stored removal.
+        await temp.Store.ResetStagingAsync();
+        await temp.Store.StageSnapshotChunkAsync([Fixtures.Ad("1", changed: T0.AddMinutes(-10))]);
+        await temp.Store.ActivateSnapshotAsync(AdFilter.Default, T0.AddMinutes(5), T0.AddMinutes(5), T0.AddMinutes(5));
+
+        Assert.Single(await temp.RowsAsync(now: T0.AddMinutes(5)));
+    }
+
+    [Fact]
+    public async Task Empty_or_much_smaller_snapshot_is_rejected_and_the_cache_kept()
+    {
+        using var temp = new TempStore();
+        await temp.BaselineAsync(Fixtures.Ad("1"), Fixtures.Ad("2"), Fixtures.Ad("3"), Fixtures.Ad("4"));
+        var before = await temp.Store.ReadSyncStateAsync();
+
+        await temp.Store.ResetStagingAsync();
+        await Assert.ThrowsAsync<SnapshotRejectedException>(() => temp.Store.ActivateSnapshotAsync(AdFilter.Default, T0.AddDays(8), T0.AddDays(8), T0.AddDays(8)));
+        await temp.Store.StageSnapshotChunkAsync([Fixtures.Ad("1")]);
+        await Assert.ThrowsAsync<SnapshotRejectedException>(() => temp.Store.ActivateSnapshotAsync(AdFilter.Default, T0.AddDays(8), T0.AddDays(8), T0.AddDays(8)));
+
+        Assert.Equal(4, (await temp.RowsAsync()).Count);
+        Assert.Equal(before, await temp.Store.ReadSyncStateAsync());
+    }
+
+    [Fact]
+    public async Task Reconciliation_never_marks_an_expired_ad_unread()
+    {
+        using var temp = new TempStore();
+        await temp.BaselineAsync(Fixtures.Ad("1"));
+        var now = T0.AddDays(8);
+
+        await temp.Store.ResetStagingAsync();
+        await temp.Store.StageSnapshotChunkAsync([Fixtures.Ad("1"), Fixtures.Ad("expired", lastPublication: now.AddMinutes(-1)), Fixtures.Ad("new")]);
+        var result = await temp.Store.ActivateSnapshotAsync(AdFilter.Default, now, now, now);
+
+        Assert.Equal(1, result.NewUnread);
+        Assert.True((await temp.RowsAsync(now: now))["new"].Unread);
     }
 
     [Fact]
