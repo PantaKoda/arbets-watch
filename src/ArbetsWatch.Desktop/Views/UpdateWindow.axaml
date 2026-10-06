@@ -1,0 +1,55 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:ArbetsWatch.Desktop.ViewModels"
+        x:Class="ArbetsWatch.Desktop.Views.UpdateWindow"
+        x:DataType="vm:UpdateViewModel"
+        Title="ArbetsWatch update"
+        Width="520" Height="560" MinWidth="360" MinHeight="320"
+        WindowStartupLocation="CenterScreen"
+        Background="{DynamicResource WidgetSurfaceBrush}">
+  <Window.KeyBindings>
+    <KeyBinding Gesture="Escape" Command="{Binding LaterCommand}" />
+  </Window.KeyBindings>
+  <DockPanel Margin="20,12,20,16">
+    <StackPanel DockPanel.Dock="Top" Spacing="4" Margin="0,0,0,10">
+      <TextBlock Classes="heading" Margin="0,4,0,0" Text="{Binding Heading}" />
+      <TextBlock TextWrapping="Wrap" Text="{Binding Summary}" />
+    </StackPanel>
+
+    <!-- Actions -->
+    <StackPanel DockPanel.Dock="Bottom" Spacing="8" Margin="0,12,0,0">
+      <ProgressBar IsVisible="{Binding ShowProgress}" Minimum="0" Maximum="100" Value="{Binding ProgressPercent}" Height="4" MinHeight="4" />
+      <TextBlock Text="{Binding Status}" IsVisible="{Binding HasStatus}" TextWrapping="Wrap" />
+      <TextBlock Text="{Binding PreviousFailure}" IsVisible="{Binding HasPreviousFailure}" TextWrapping="Wrap" Foreground="{DynamicResource StatusWarningBrush}" />
+      <TextBlock Classes="secondary" Text="{Binding InstallHint}" IsVisible="{Binding HasInstallHint}" TextWrapping="Wrap" TextTrimming="None" />
+      <WrapPanel ItemSpacing="8" LineSpacing="8">
+        <Button Classes="accent" Content="Install update" Command="{Binding InstallCommand}"
+                ToolTip.Tip="Downloads the release from GitHub, checks it against its published checksum, then restarts into the new version. Your saved ads, read state and settings are kept." />
+        <Button Content="Cancel" Command="{Binding CancelCommand}" IsVisible="{Binding CanCancel}"
+                ToolTip.Tip="Stops the download. Nothing is changed." />
+        <Button Content="View on GitHub" Command="{Binding ViewOnGitHubCommand}" />
+        <Button Content="Check again" Command="{Binding CheckAgainCommand}" IsEnabled="{Binding !IsBusy}" />
+        <Button Content="Later" Command="{Binding LaterCommand}" />
+      </WrapPanel>
+    </StackPanel>
+
+    <!-- What changed, newest release first -->
+    <Border BorderBrush="{DynamicResource HudFrameBrush}" BorderThickness="1" CornerRadius="6">
+      <ScrollViewer Padding="12,8">
+        <ItemsControl ItemsSource="{Binding Releases}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="vm:ReleaseNotesItem">
+              <StackPanel Spacing="4" Margin="0,4,0,14">
+                <StackPanel Orientation="Horizontal" Spacing="10">
+                  <TextBlock Classes="title" Text="{Binding Title}" />
+                  <TextBlock Classes="secondary" Text="{Binding DateText}" VerticalAlignment="Bottom" />
+                </StackPanel>
+                <SelectableTextBlock Text="{Binding Notes}" TextWrapping="Wrap" />
+              </StackPanel>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </ScrollViewer>
+    </Border>
+  </DockPanel>
+</Window>

@@ -11,6 +11,7 @@ Status of the milestones in `AGENTS.md`, with the validation that was actually r
 | M4 — Monitoring | Done |
 | M5 — Usable UI | Done |
 | M6 — Desktop release | In progress: real sleep/resume, a DPI change and the tray menu still need a manual check |
+| M7 — Releases and in-app updates | Done (first real release pending) |
 
 ## M0 — Contracts
 
@@ -148,6 +149,30 @@ Limitations and checks not performed:
 - With transparency on, the blur also fills the 6 px margin outside the rounded frame.
 - Not code-signed; no installer; Windows x64 only.
 
+## M7 — Releases and in-app updates
+
+Same design as Repo Watch (details and security notes in `docs/updates.md`):
+
+- `.github/workflows/release.yml`: a `vX.Y.Z` tag on `main` matching `<Version>` builds, tests and packages with `scripts/publish-windows.ps1`, takes the notes from `CHANGELOG.md` (`scripts/release-notes.ps1`) and creates the GitHub release with the zip and `.sha256`. Actions pinned to release commit SHAs; only this job gets `contents: write`.
+- Packaging: reproducible zip (ordinal entry order, commit timestamp, no symbols, English resources only; 47.7 MB) with a `release.json` marker (version, commit, files).
+- Core `Updates`: `ReleaseClient` (anonymous GitHub releases, downloads only from this repository's release URLs, size limit, stall timeout), `UpdateService` (daily check, user-initiated install: checksum, staging in the data folder, manifest version check, hand-over), `UpdateApplier` (waits for the old process, moves the folder to `.previous`, copies, restarts; puts the previous version back on failure), `InstallInfo`.
+- UI: UPDATE pill in the header, update window with plain-text notes, Install / Cancel / View on GitHub / Check again / Later, Settings → Check for updates, "Updated to X from Y" notice after the hand-over.
+- CI now packages with the release script and uploads the zip.
+- CI fix: the Windows job's locked publish failed (NU1004) on M1–M5 because Core lacked the `win-x64` RID; fixed on M1 and merged forward.
+
+Validation on Windows 11:
+
+```text
+dotnet test ArbetsWatch.slnx → 154 passed (36 new: versions, policy, checksum files, notes text, release client, install flow with a real zip, folder swap)
+```
+
+- Real hand-over with release zips built by the script: 0.1.0 installed in a scratch `Programs\ArbetsWatch` and running; 0.1.1 staged in the data folder's `updates`; updater started with `--apply-update`; 0.1.0 quit → `Programs\ArbetsWatch` now 0.1.1, `ArbetsWatch.previous` holds 0.1.0, `logs\update.log` records it, 0.1.1 started from the install folder and showed "Updated to 0.1.1 from 0.1.0.", with the saved list intact.
+- Check for updates from the installed 0.1.0 against the real repository: "Version 0.1.0 is the latest" (no releases yet).
+
+Review fixes (PR #8): `UpdateService.Dispose` is idempotent and owned by `Program` only (every quit used to end in `ObjectDisposedException`); the release workflow is split so restore/build/tests run with a read-only token and no persisted credentials, and only a separate job with `contents: write` publishes; the hand-over never leaves nothing running (timeout restarts the installed version, a new version that can't start is rolled back), and restore steps retry; rollback paths are tested with real Windows file locks; the install precondition is checked after taking the gate (no leak), a busy gate says so, and staging is also cleaned after a failed hand-over; release notes are written outside the tree and the publish script refuses a dirty tree unless `-AllowDirty`.
+
+Not yet verified: download of a real GitHub release asset (needs a published release) and the release workflow itself (runs on the first tag).
+
 ## Next step
 
-Run the manual M6 checks above, merge the PR stack into `main` in order, then tag the first release from a reviewed `main` commit (AGENTS.md section 11).
+Run the manual M6 checks, merge the PR stack into `main` in order, then tag `v0.1.0` on a reviewed `main` commit to publish the first release (AGENTS.md section 11). A later `v0.1.1` exercises the in-app update against GitHub end to end.

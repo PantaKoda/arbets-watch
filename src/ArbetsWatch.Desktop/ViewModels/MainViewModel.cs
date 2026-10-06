@@ -9,6 +9,7 @@ using ArbetsWatch.Core.Settings;
 using ArbetsWatch.Core.Storage;
 using ArbetsWatch.Core.Sync;
 using ArbetsWatch.Core.Time;
+using ArbetsWatch.Core.Updates;
 using ArbetsWatch.Desktop.Controls;
 using ArbetsWatch.Desktop.Platform;
 using Avalonia.Threading;
@@ -24,6 +25,8 @@ public interface IShell
     void HideWindow();
 
     void ApplyAppearance(AppPreferences preferences);
+
+    void ShowUpdateWindow();
 
     void SavePreferences(AppPreferences preferences);
 
@@ -44,6 +47,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     private readonly IShell _shell;
     private readonly ILogger<MainViewModel> _logger;
     private readonly DispatcherTimer _clock;
+    private readonly UpdateService? _updates;
     private AppPreferences _preferences;
     private SyncStatus _status;
     private int _reloadVersion;
@@ -61,7 +65,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         AppPaths paths,
         AppPreferences preferences,
         IShell shell,
-        ILogger<MainViewModel> logger)
+        ILogger<MainViewModel> logger,
+        UpdateService? updates = null)
     {
         _store = store;
         _coordinator = coordinator;
@@ -71,6 +76,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         _shell = shell;
         _logger = logger;
         _preferences = preferences;
+        _updates = updates;
         _status = coordinator.Status;
         DataDirectory = paths.DataDirectory;
         VersionText = $"ArbetsWatch {typeof(MainViewModel).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion?.Split('+')[0] ?? "dev"}";
@@ -85,6 +91,21 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         _onData = (_, _) => Dispatcher.UIThread.Post(() => _ = ReloadAsync(ReloadReason.DataChanged));
         coordinator.StatusChanged += _onStatus;
         coordinator.DataChanged += _onData;
+
+        if (updates is not null)
+        {
+            updates.Changed += (_, _) => Dispatcher.UIThread.Post(UpdateUpdateState);
+            if (updates.Install.UpdatedFrom is { } from)
+            {
+                ShowStartupNotice($"Updated to {updates.Current} from {from}.");
+            }
+            else if (updates.Install.UpdateFailed is { } failure)
+            {
+                ShowStartupNotice(failure);
+            }
+        }
+
+        UpdateUpdateState();
 
         _clock = new DispatcherTimer { Interval = TimeSpan.FromSeconds(20) };
         _clock.Tick += (_, _) => UpdateStatusText();
@@ -217,6 +238,24 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     public partial string SyncDetails { get; set; } = string.Empty;
 
+    // ---- Updates ----------------------------------------------------------------------------------------
+
+    /// <summary>A newer release exists: the UPDATE pill shows in the header.</summary>
+    [ObservableProperty]
+    public partial bool UpdateAvailable { get; set; }
+
+    [ObservableProperty]
+    public partial string UpdateTooltip { get; set; } = string.Empty;
+
+    [ObservableProperty]
+    public partial string UpdateInfoText { get; set; } = string.Empty;
+
+    [ObservableProperty]
+    public partial string StartupNotice { get; set; } = string.Empty;
+
+    [ObservableProperty]
+    public partial bool HasStartupNotice { get; set; }
+
     public bool HasUnread => UnreadCount > 0;
 
     public string UnreadText => UnreadCount == 1 ? "1 new" : string.Create(CultureInfo.CurrentCulture, $"{UnreadCount:N0} new");
@@ -328,6 +367,27 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     [RelayCommand]
     private void Hide() => _shell.HideWindow();
+
+    [RelayCommand]
+    private void OpenUpdate() => _shell.ShowUpdateWindow();
+
+    [RelayCommand]
+    private async Task CheckForUpdatesAsync()
+    {
+        if (_updates is null)
+        {
+            return;
+        }
+
+        var result = await _updates.CheckNowAsync().ConfigureAwait(true);
+        if (result.Outcome == UpdateCheckOutcome.Available)
+        {
+            _shell.ShowUpdateWindow();
+        }
+    }
+
+    [RelayCommand]
+    private void DismissStartupNotice() => HasStartupNotice = false;
 
     [RelayCommand]
     private void Quit() => _shell.Quit();
@@ -650,6 +710,37 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         {
             HasNotice = false;
         }
+    }
+
+    private void UpdateUpdateState()
+    {
+        if (_updates is null)
+        {
+            UpdateInfoText = VersionText;
+            return;
+        }
+
+        UpdateAvailable = _updates.IsUpdateAvailable;
+        UpdateTooltip = _updates.Latest is { } latest ? $"ArbetsWatch {latest.Version} is available. Click to see what changed and install it." : string.Empty;
+        var checkedText = _updates.LastChecked is { } at ? $" Checked {SwedishTime.ToLocal(at):HH:mm}." : string.Empty;
+        UpdateInfoText = _updates.Stage switch
+        {
+            UpdateStage.Checking => "Checking for updates…",
+            UpdateStage.UpToDate => $"Version {_updates.Current} is the latest.{checkedText}",
+            UpdateStage.Available => $"Version {_updates.Latest?.Version} is available (you have {_updates.Current}).",
+            UpdateStage.CheckFailed => _updates.Message ?? "Checking for updates failed.",
+            UpdateStage.Downloading or UpdateStage.Verifying or UpdateStage.Installing => "Installing an update…",
+            UpdateStage.Restarting => "Restarting into the new version…",
+            UpdateStage.InstallFailed => _updates.Message ?? "The update could not be installed.",
+            _ => $"Version {_updates.Current}. Updates are checked daily.",
+        };
+    }
+
+    private void ShowStartupNotice(string message)
+    {
+        StartupNotice = message;
+        HasStartupNotice = true;
+        DispatcherTimer.RunOnce(() => HasStartupNotice = false, TimeSpan.FromSeconds(30));
     }
 
     private void ShowNotice(string message)

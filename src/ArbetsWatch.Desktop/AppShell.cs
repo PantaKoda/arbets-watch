@@ -3,6 +3,7 @@ using ArbetsWatch.Core.Platform;
 using ArbetsWatch.Core.Settings;
 using ArbetsWatch.Core.Storage;
 using ArbetsWatch.Core.Sync;
+using ArbetsWatch.Core.Updates;
 using ArbetsWatch.Desktop.Platform;
 using ArbetsWatch.Desktop.ViewModels;
 using ArbetsWatch.Desktop.Views;
@@ -31,6 +32,8 @@ public sealed class AppShell : IShell, IDisposable
     private readonly PlaceCatalog _catalog;
     private readonly SingleInstance _instance;
     private readonly ILoggerFactory _loggers;
+    private readonly UpdateService _updates;
+    private UpdateWindow? _updateWindow;
     private readonly ILogger<AppShell> _logger;
     private readonly TrayService _tray;
     private readonly DispatcherTimer _saveTimer;
@@ -56,8 +59,10 @@ public sealed class AppShell : IShell, IDisposable
         PlaceCatalog catalog,
         AppPreferences preferences,
         SingleInstance instance,
+        UpdateService updates,
         ILoggerFactory loggers)
     {
+        _updates = updates;
         _paths = paths;
         _store = store;
         _coordinator = coordinator;
@@ -82,7 +87,7 @@ public sealed class AppShell : IShell, IDisposable
         _application = application;
 
         var viewModel = new MainViewModel(_store, _coordinator, _catalog, new BrowserLauncher(_loggers.CreateLogger<BrowserLauncher>()),
-            TimeProvider.System, _paths, _preferences, this, _loggers.CreateLogger<MainViewModel>());
+            TimeProvider.System, _paths, _preferences, this, _loggers.CreateLogger<MainViewModel>(), _updates);
         var window = new MainWindow { DataContext = viewModel, Icon = LoadIcon() };
         _viewModel = viewModel;
         _window = window;
@@ -134,6 +139,10 @@ public sealed class AppShell : IShell, IDisposable
                 _tray.SetToolTip($"ArbetsWatch · {viewModel.StatusText}");
             }
         };
+
+        // The new version is staged and waiting for this process to exit so it can replace the folder.
+        _updates.ExitRequested += (_, _) => Dispatcher.UIThread.Post(Quit);
+        _updates.Start();
 
         window.Show();
         _resumeWatch.Start();
@@ -201,6 +210,31 @@ public sealed class AppShell : IShell, IDisposable
             : Brushes.Transparent;
     }
 
+    public void ShowUpdateWindow()
+    {
+        if (_updateWindow is { } open)
+        {
+            open.Activate();
+            return;
+        }
+
+        var viewModel = new UpdateViewModel(_updates, new BrowserLauncher(_loggers.CreateLogger<BrowserLauncher>()));
+        var window = new UpdateWindow { DataContext = viewModel, Icon = _window?.Icon };
+        viewModel.CloseRequested += (_, _) => window.Close();
+        window.Closed += (_, _) =>
+        {
+            viewModel.Dispose();
+            _updateWindow = null;
+        };
+        _updateWindow = window;
+        window.Show();
+        window.Activate();
+        if (_updates.Stage is UpdateStage.Idle or UpdateStage.CheckFailed)
+        {
+            _ = _updates.CheckNowAsync();
+        }
+    }
+
     public void SavePreferences(AppPreferences preferences)
     {
         _preferences = preferences;
@@ -217,6 +251,7 @@ public sealed class AppShell : IShell, IDisposable
 
     public void Dispose()
     {
+        // The update service is owned (and disposed) by Program, which created it.
         _tray.Dispose();
         _viewModel?.Dispose();
     }
