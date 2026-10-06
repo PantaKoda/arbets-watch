@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Runtime.CompilerServices;
+using System.Text.Json;
 using ArbetsWatch.Core.Ads;
 using ArbetsWatch.Core.Time;
 
@@ -25,16 +26,29 @@ public enum FailureKind
 
     /// <summary>The request itself was rejected (4xx). Retrying the same request will not help.</summary>
     Permanent,
+
+    /// <summary>
+    /// A record was valid JSON but not a usable ad (no id, not an object). The same data would fail again, so
+    /// retries should be rare.
+    /// </summary>
+    InvalidData,
 }
 
 public sealed class JobStreamException : Exception
 {
-    public JobStreamException(FailureKind kind, string message, Exception? inner = null, int? statusCode = null, TimeSpan? retryAfter = null)
+    public JobStreamException(
+        FailureKind kind,
+        string message,
+        Exception? inner = null,
+        int? statusCode = null,
+        TimeSpan? retryAfter = null,
+        bool connectivity = false)
         : base(message, inner)
     {
         Kind = kind;
         StatusCode = statusCode;
         RetryAfter = retryAfter;
+        IsConnectivity = connectivity;
     }
 
     public JobStreamException()
@@ -56,6 +70,9 @@ public sealed class JobStreamException : Exception
     public int? StatusCode { get; }
 
     public TimeSpan? RetryAfter { get; }
+
+    /// <summary>The service couldn't be reached or the connection broke (offline, timeout, stall, reset).</summary>
+    public bool IsConnectivity { get; }
 }
 
 /// <summary>
@@ -88,8 +105,8 @@ public sealed class JobStreamClient(HttpClient http, TimeSpan? stallTimeout = nu
 
     public async IAsyncEnumerable<SourceRecord> ReadSnapshotAsync([EnumeratorCancellation] CancellationToken cancellationToken)
     {
-        // Removals never occur in a snapshot; if one did, it would carry its own date.
-        var fallback = DateTimeOffset.UtcNow;
+        // Records without their own change instant are ordered as of the snapshot request.
+        var fallback = SwedishTime.FloorToSecond(DateTimeOffset.UtcNow);
         await foreach (var record in ReadLinesAsync("v2/snapshot", fallback, cancellationToken).ConfigureAwait(false))
         {
             yield return record;
@@ -112,7 +129,7 @@ public sealed class JobStreamClient(HttpClient http, TimeSpan? stallTimeout = nu
 
     private async IAsyncEnumerable<SourceRecord> ReadLinesAsync(
         string path,
-        DateTimeOffset removalFallback,
+        DateTimeOffset unorderedFallback,
         [EnumeratorCancellation] CancellationToken cancellationToken)
     {
         using var request = new HttpRequestMessage(HttpMethod.Get, path);
@@ -129,11 +146,11 @@ public sealed class JobStreamClient(HttpClient http, TimeSpan? stallTimeout = nu
         }
         catch (HttpRequestException ex)
         {
-            throw new JobStreamException(FailureKind.Transient, $"Could not reach JobStream: {ex.Message}", ex);
+            throw new JobStreamException(FailureKind.Transient, $"Could not reach JobStream: {ex.Message}", ex, connectivity: true);
         }
         catch (OperationCanceledException ex) when (!cancellationToken.IsCancellationRequested)
         {
-            throw new JobStreamException(FailureKind.Transient, "JobStream did not respond in time.", ex);
+            throw new JobStreamException(FailureKind.Transient, "JobStream did not respond in time.", ex, connectivity: true);
         }
 
         using (response)
@@ -145,10 +162,10 @@ public sealed class JobStreamClient(HttpClient http, TimeSpan? stallTimeout = nu
             {
                 body = await response.Content.ReadAsStreamAsync(stall.Token).ConfigureAwait(false);
             }
-            catch (Exception ex) when (ex is HttpRequestException or IOException ||
+            catch (Exception ex) when (ex is HttpRequestException or IOException or InvalidDataException ||
                                        (ex is OperationCanceledException && !cancellationToken.IsCancellationRequested))
             {
-                throw new JobStreamException(FailureKind.Transient, "The JobStream response could not be read.", ex);
+                throw new JobStreamException(FailureKind.Transient, "The JobStream response could not be read.", ex, connectivity: ex is not InvalidDataException);
             }
 
             await using (body.ConfigureAwait(false))
@@ -160,18 +177,25 @@ public sealed class JobStreamClient(HttpClient http, TimeSpan? stallTimeout = nu
                     string? line;
                     try
                     {
+                        // The watchdog runs only while waiting for the network, never while the caller processes a
+                        // record (slow staging writes must not look like a stalled connection).
+                        stall.CancelAfter(_stallTimeout);
                         line = await reader.ReadLineAsync(stall.Token).ConfigureAwait(false);
+                        stall.CancelAfter(Timeout.InfiniteTimeSpan);
                     }
                     catch (OperationCanceledException ex) when (!cancellationToken.IsCancellationRequested)
                     {
-                        throw new JobStreamException(FailureKind.Transient, $"The JobStream response stalled after {lineNumber} lines.", ex);
+                        throw new JobStreamException(FailureKind.Transient, $"The JobStream response stalled after {lineNumber} lines.", ex, connectivity: true);
                     }
                     catch (Exception ex) when (ex is HttpRequestException or IOException)
                     {
-                        throw new JobStreamException(FailureKind.Transient, $"The JobStream response ended early after {lineNumber} lines.", ex);
+                        throw new JobStreamException(FailureKind.Transient, $"The JobStream response ended early after {lineNumber} lines.", ex, connectivity: true);
                     }
-
-                    stall.CancelAfter(_stallTimeout);
+                    catch (InvalidDataException ex)
+                    {
+                        // Corrupt compressed data (automatic decompression is on).
+                        throw new JobStreamException(FailureKind.Transient, $"The JobStream response was corrupt after {lineNumber} lines.", ex);
+                    }
 
                     if (line is null)
                     {
@@ -187,11 +211,13 @@ public sealed class JobStreamClient(HttpClient http, TimeSpan? stallTimeout = nu
                     SourceRecord record;
                     try
                     {
-                        record = AdRecordParser.Parse(line, removalFallback);
+                        record = AdRecordParser.Parse(line, unorderedFallback);
                     }
                     catch (AdParseException ex)
                     {
-                        throw new JobStreamException(FailureKind.Transient, AdParseException.Describe(lineNumber, ex.Message), ex);
+                        // Broken JSON is usually a truncated transfer; valid JSON that isn't an ad will fail again.
+                        var kind = ex.InnerException is JsonException ? FailureKind.Transient : FailureKind.InvalidData;
+                        throw new JobStreamException(kind, AdParseException.Describe(lineNumber, ex.Message), ex);
                     }
 
                     yield return record;

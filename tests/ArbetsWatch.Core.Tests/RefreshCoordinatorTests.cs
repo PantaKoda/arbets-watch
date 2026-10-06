@@ -83,7 +83,7 @@ public sealed class RefreshCoordinatorTests : IAsyncLifetime
     {
         var coordinator = await StartedWithBaselineAsync();
         var lastSuccess = coordinator.Status.LastSuccessUtc;
-        _stream.Changes = (_, _) => throw new JobStreamException(FailureKind.Transient, "boom", new HttpRequestException("offline"));
+        _stream.Changes = (_, _) => throw new JobStreamException(FailureKind.Transient, "boom", new HttpRequestException("offline"), connectivity: true);
 
         _time.Advance(Poll);
         await Until(() => coordinator.Status.Phase == SyncPhase.Offline);
@@ -135,7 +135,7 @@ public sealed class RefreshCoordinatorTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Filter_change_waits_for_the_running_batch()
+    public async Task Filter_change_during_a_download_does_not_wait_and_applies_to_the_commit()
     {
         var coordinator = await StartedWithBaselineAsync();
         var goteborg = new AdFilter { MunicipalityIds = new HashSet<string> { "PVZL_BQT_XtL" } };
@@ -145,16 +145,91 @@ public sealed class RefreshCoordinatorTests : IAsyncLifetime
 
         coordinator.RequestRefresh(RefreshReason.Manual);
         await Until(() => coordinator.Status.Phase == SyncPhase.Updating);
-        var change = coordinator.SetFilterAsync(goteborg);
-        await Task.Delay(100, TestContext.Current.CancellationToken);
-        Assert.False(change.IsCompleted);
+        await coordinator.SetFilterAsync(goteborg).WaitAsync(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken);
 
         _stream.HoldChanges.SetResult();
-        await change;
+        await Until(() => coordinator.Status is { Phase: SyncPhase.Idle, Foreground: false });
 
-        // The batch was judged with the filter in effect when it started (All Sweden): Malmö is unread.
-        Assert.True((await _temp.RowsAsync(now: _time.GetUtcNow()))["malmo"].Unread);
-        Assert.Equal(goteborg, coordinator.Filter);
+        // The whole batch was judged with the filter in effect at commit (Göteborg): Malmö is not new.
+        Assert.False((await _temp.RowsAsync(now: _time.GetUtcNow()))["malmo"].Unread);
+    }
+
+    [Fact]
+    public async Task Filter_change_and_mark_read_do_not_wait_for_throttled_catch_up()
+    {
+        var coordinator = Create(gateSpacing: TimeSpan.FromMinutes(1));
+        coordinator.Start();
+        await Until(() => coordinator.Status is { HasBaseline: true, Phase: SyncPhase.Idle, NextRunUtc: not null });
+
+        // A 30-hour gap needs three requests; with 1-minute spacing the cycle parks at the gate (clock not advanced).
+        _time.Advance(TimeSpan.FromHours(30));
+        coordinator.RequestRefresh(RefreshReason.Resume);
+        await Until(() => _stream.ChangeRequests.Count >= 2);
+
+        await coordinator.SetFilterAsync(new AdFilter { RegionIds = new HashSet<string> { "wjee_qH2_yb6" } })
+            .WaitAsync(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken);
+        await coordinator.MarkMatchingReadAsync().WaitAsync(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken);
+        Assert.Equal(SyncPhase.Updating, coordinator.Status.Phase);
+    }
+
+    [Fact]
+    public async Task Retry_after_is_never_undercut_by_jitter()
+    {
+        var coordinator = await StartedWithBaselineAsync();
+        _stream.Changes = (_, _) => throw new JobStreamException(FailureKind.RateLimited, "slow down", retryAfter: TimeSpan.FromMinutes(5));
+
+        _time.Advance(Poll);
+        await Until(() => coordinator.Status.Phase == SyncPhase.Failed);
+
+        Assert.True(coordinator.Status.NextRunUtc >= _time.GetUtcNow() + TimeSpan.FromMinutes(5));
+    }
+
+    [Fact]
+    public async Task Failing_subscribers_and_unexpected_errors_never_stop_monitoring()
+    {
+        var coordinator = Create();
+        coordinator.StatusChanged += (_, _) => throw new InvalidOperationException("broken subscriber");
+        coordinator.DataChanged += (_, _) => throw new InvalidOperationException("broken subscriber");
+        coordinator.Start();
+        await Until(() => coordinator.Status is { HasBaseline: true, Phase: SyncPhase.Idle, NextRunUtc: not null });
+
+        _stream.Changes = (_, _) => throw new InvalidOperationException("unexpected");
+        _time.Advance(Poll);
+        await Until(() => coordinator.Status.Phase == SyncPhase.Failed);
+
+        _stream.Changes = (_, _) => [];
+        _time.Advance(Poll);
+        await Until(() => coordinator.Status.Phase == SyncPhase.Idle);
+    }
+
+    [Fact]
+    public async Task Pausing_stops_a_running_catch_up_between_steps()
+    {
+        var coordinator = await StartedWithBaselineAsync();
+        var first = _stream.ChangeRequests.Count;
+        _stream.HoldChanges = new TaskCompletionSource();
+
+        _time.Advance(TimeSpan.FromHours(30));
+        coordinator.RequestRefresh(RefreshReason.Resume);
+        await Until(() => _stream.ChangeRequests.Count == first + 1);
+        coordinator.SetPaused(true);
+        _stream.HoldChanges.SetResult();
+
+        await Until(() => coordinator.Status.Phase == SyncPhase.Paused);
+        await Task.Delay(100, TestContext.Current.CancellationToken);
+        Assert.Equal(first + 1, _stream.ChangeRequests.Count);
+    }
+
+    [Fact]
+    public async Task Invalid_data_backs_off_for_at_least_half_an_hour()
+    {
+        var coordinator = await StartedWithBaselineAsync();
+        _stream.Changes = (_, _) => throw new JobStreamException(FailureKind.InvalidData, "not an ad");
+
+        _time.Advance(Poll);
+        await Until(() => coordinator.Status.Phase == SyncPhase.Failed);
+
+        Assert.True(coordinator.Status.NextRunUtc >= _time.GetUtcNow() + TimeSpan.FromMinutes(30));
     }
 
     [Fact]
@@ -199,9 +274,9 @@ public sealed class RefreshCoordinatorTests : IAsyncLifetime
         Assert.Equal(1, _stream.SnapshotRequests);
     }
 
-    private RefreshCoordinator Create()
+    private RefreshCoordinator Create(TimeSpan? gateSpacing = null)
     {
-        var engine = new SyncEngine(_temp.Store, _stream, new RequestGate(_time, TimeSpan.Zero), _time, new SyncOptions(), NullLogger<SyncEngine>.Instance);
+        var engine = new SyncEngine(_temp.Store, _stream, new RequestGate(_time, gateSpacing ?? TimeSpan.Zero), _time, new SyncOptions(), NullLogger<SyncEngine>.Instance);
         _coordinator = new RefreshCoordinator(engine, _temp.Store, _time, NullLogger<RefreshCoordinator>.Instance, AdFilter.Default, Poll, paused: false, new Random(1));
         return _coordinator;
     }

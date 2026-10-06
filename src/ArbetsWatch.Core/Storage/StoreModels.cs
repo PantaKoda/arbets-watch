@@ -23,6 +23,21 @@ public sealed record StorePolicy
 {
     /// <summary>How long compact state is kept after an ad becomes inactive.</summary>
     public TimeSpan InactiveRetention { get; init; } = TimeSpan.FromDays(90);
+
+    /// <summary>
+    /// A snapshot with fewer current ads than this fraction of the cache is rejected as implausible (a truncated
+    /// or empty download) and the previous cache is kept.
+    /// </summary>
+    public double MinSnapshotFraction { get; init; } = 0.5;
+}
+
+/// <summary>Activation refused: the staged snapshot is implausibly small. Nothing was changed.</summary>
+public sealed class SnapshotRejectedException(long staged, long current)
+    : InvalidOperationException($"The downloaded snapshot has {staged} ads but the cache has {current}; it was not used.")
+{
+    public long Staged { get; } = staged;
+
+    public long Current { get; } = current;
 }
 
 /// <summary>

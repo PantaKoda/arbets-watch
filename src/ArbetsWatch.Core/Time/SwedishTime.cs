@@ -15,10 +15,11 @@ public static class SwedishTime
 
     /// <summary>
     /// Parses an offset-free <c>YYYY-MM-DDTHH:MM:SS</c> value as Stockholm wall-clock time.
-    /// In the repeated autumn hour the earlier (summer-time) instant is chosen; a time inside the spring gap
-    /// is read with the standard (winter) offset. Returns null for missing or unparseable text.
+    /// In the repeated autumn hour the earlier (summer-time) instant is chosen, or the later one when
+    /// <paramref name="laterInRepeatedHour"/> is set (removal dates, see docs/api-contracts.md). A time inside the
+    /// spring gap is read with the standard (winter) offset. Returns null for missing or unparseable text.
     /// </summary>
-    public static DateTimeOffset? ParseLocal(string? text)
+    public static DateTimeOffset? ParseLocal(string? text, bool laterInRepeatedHour = false)
     {
         if (string.IsNullOrWhiteSpace(text) ||
             !DateTime.TryParseExact(text, ["yyyy-MM-ddTHH:mm:ss", "yyyy-MM-ddTHH:mm:ss.FFFFFFF"],
@@ -27,16 +28,18 @@ public static class SwedishTime
             return null;
         }
 
-        return FromLocal(local);
+        return FromLocal(local, laterInRepeatedHour);
     }
 
-    public static DateTimeOffset FromLocal(DateTime local)
+    public static DateTimeOffset FromLocal(DateTime local, bool laterInRepeatedHour = false)
     {
         local = DateTime.SpecifyKind(local, DateTimeKind.Unspecified);
         TimeSpan offset;
         if (Zone.IsAmbiguousTime(local))
         {
-            offset = Zone.GetAmbiguousTimeOffsets(local).Max();
+            // The larger offset (summer time) is the earlier instant.
+            var offsets = Zone.GetAmbiguousTimeOffsets(local);
+            offset = laterInRepeatedHour ? offsets.Min() : offsets.Max();
         }
         else if (Zone.IsInvalidTime(local))
         {

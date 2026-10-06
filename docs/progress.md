@@ -34,7 +34,9 @@ dotnet test ArbetsWatch.slnx                       → 41 passed
 dotnet format ArbetsWatch.slnx --verify-no-changes → ok
 ```
 
-The CI workflow has not run yet; there is no GitHub remote.
+CI on GitHub (`PantaKoda/arbets-watch`, PR #2): `build-test-windows`, `core-tests-linux` and `format` passed after the `win-x64` RID fix for the publish step. SDK pinned to 10.0.401 with `latestPatch`, so analyzer and format rules move only with a deliberate SDK bump.
+
+Review fixes: All Sweden includes ads without a country; `AdFilterSql` is two-valued and composable (negation and two filters per command are tested); an active ad without `timestamp` is applied as the newest state instead of being ordered by its publication date; unreadable `removed_date` text is kept; ambiguous removal dates take the later instant.
 
 ## M2 — Persistence
 
@@ -43,6 +45,8 @@ The CI workflow has not run yet; there is no GitHub remote.
 - `SourceOrder`: incoming states strictly older than the stored one are rejected; ad vs ad in milliseconds, anything involving a removal in whole seconds; ties apply.
 - Unread is decided once, when an ID is first seen after the baseline, from the filter in effect then. Edits, re-publication, filter expansion and re-matching never create unread markers.
 - `AppPreferences` (filter, interval 1–60 min, window, theme, transparency, always-on-top, pause) stored as one JSON value; unreadable values fall back to defaults. `AppPaths` resolves the per-platform data directory.
+
+Review fixes (PR #3): `ad_state.first_seen_utc` is the first sighting *as an ad* (null while an ID is known only from a removal), so an ID first seen as a removal still becomes unread when it appears; a completed snapshot is authoritative for membership (a re-published ad with an older timestamp is restored); activation refuses a snapshot with fewer than half the cached ads (`SnapshotRejectedException`, cache and checkpoint kept); expired ads never become unread on activation; `synchronous = NORMAL` is set on every connection; a stored filter without worktime falls back to all categories.
 
 Validation (local, temporary SQLite files): restart persistence, rollback on failure and cancellation, identical replay, older-state rejection, removal tie, unknown-ID removal, re-publication, unread rules, filter expansion, location change, mark-matching-read scope, expiry without removal, empty interval, 90-day pruning, newer-schema refusal, preferences round trip.
 
@@ -58,6 +62,8 @@ dotnet format --verify-no-changes → ok
 - `RequestGate`: one shared minimum spacing (60 s) and server back-off for every request.
 - `SyncEngine.LoadSnapshotAsync`: captures the start before requesting, stages in 2,000-row transactions, replays `[start − 5 min, now − 2 min]` into staging (older states never overwrite newer ones; removals become tombstones), then activates and checkpoints atomically. `PollIntervalAsync` requests one bounded interval and commits it with its checkpoint.
 - Snapshot policy: first start, time-adapter change, gap over 7 days, or weekly reconciliation.
+- Review fixes (PR #4): valid JSON that isn't an ad fails as `InvalidData` (not retried like a transient error); the stall watchdog runs only while waiting for the network, not while staging writes run; corrupt compressed data is classified; connectivity failures are flagged (`IsConnectivity`); a completed download whose replay or activation failed is reused for 30 minutes instead of downloading ~450 MB again.
+- `PollIntervalAsync` (interval clamp, nothing due, unchanged checkpoint on failure, `Retry-After` deferral) is exercised by the M4 tests, not here.
 
 Validation:
 
@@ -75,6 +81,7 @@ dotnet test ArbetsWatch.slnx → 83 passed
 - Bounded catch-up: up to 16 gated requests per cycle, each interval at most 12 h; gaps over 7 days use a snapshot.
 - Failures keep the cached list visible. Transient: 30 s doubling, capped at the poll interval, ±25 % jitter, never shorter than `Retry-After`. Rejected (4xx): automatic retries stop until a manual refresh. Status phases: Idle, LoadingSnapshot, Updating, Paused, Offline, Failed.
 - Expiry is applied at every commit and at query time, so expired ads disappear without network access.
+- Review fixes (PR #5): the coordinator's lock is held only around each commit (`CommitScope`), never across downloads, throttling waits or a whole catch-up, so filter changes and mark-read stay instant; the loop survives startup read failures, unexpected exceptions and failing event subscribers; jitter is applied before clamping to `Retry-After`; invalid data and rejected snapshots retry after at least 30 minutes; offline is detected from the client's connectivity flag (stalls and dropped connections included); background reconciliation snapshots are not shown as foreground; pausing stops a running catch-up between steps.
 
 Validation: coordinator tests with a fake clock (startup snapshot, timer, coalesced manual refreshes, transient backoff window, permanent stop and manual recovery, pause/unpause, filter change during a running batch, 30-hour catch-up in three contiguous ≤ 12 h intervals, restart scheduling) and engine tests (autumn DST intervals with exact query strings, nothing requested before due, `Retry-After` deferring the shared gate without moving the checkpoint, gate spacing, sparse removal plus expiry in one poll).
 
