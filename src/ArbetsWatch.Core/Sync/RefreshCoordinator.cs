@@ -355,7 +355,6 @@ public sealed class RefreshCoordinator : IAsyncDisposable
 
             if (reason is null)
             {
-                Publish(s => s with { NextRunUtc = wait == Timeout.InfiniteTimeSpan ? null : _nextDue });
                 await WaitAsync(wake.Task, wait!.Value, stopping).ConfigureAwait(false);
                 return;
             }
@@ -364,10 +363,15 @@ public sealed class RefreshCoordinator : IAsyncDisposable
         }
     }
 
+    /// <summary>
+    /// Waits for a wake-up or the next due time. The delay timer exists before the next run time is published,
+    /// so anyone reacting to the published time (UI, tests with a fake clock) can never move time past it unseen.
+    /// </summary>
     private async Task WaitAsync(Task wake, TimeSpan wait, CancellationToken stopping)
     {
         if (wait == Timeout.InfiniteTimeSpan)
         {
+            Publish(s => s with { NextRunUtc = null });
             await wake.WaitAsync(stopping).ConfigureAwait(false);
             return;
         }
@@ -379,6 +383,7 @@ public sealed class RefreshCoordinator : IAsyncDisposable
 
         using var delayCancel = CancellationTokenSource.CreateLinkedTokenSource(stopping);
         var delay = Task.Delay(wait, _time, delayCancel.Token);
+        Publish(s => s with { NextRunUtc = _nextDue });
         await Task.WhenAny(wake, delay).ConfigureAwait(false);
         await delayCancel.CancelAsync().ConfigureAwait(false);
         stopping.ThrowIfCancellationRequested();
