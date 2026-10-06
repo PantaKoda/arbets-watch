@@ -1,0 +1,17 @@
+{
+  "id": "90000008",
+  "removed": true,
+  "removed_date": "2026-10-06T19:08:13",
+  "occupation": {
+    "concept_id": "jsUx_ngg_Kz2"
+  },
+  "occupation_group": {
+    "concept_id": "oXSW_fbY_XrY"
+  },
+  "occupation_field": {
+    "concept_id": "RPTn_bxG_ExZ"
+  },
+  "municipality": "PVZL_BQT_XtL",
+  "region": "zdoY_6u5_Krt",
+  "country": "i46j_HmG_v64"
+}
