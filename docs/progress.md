@@ -7,7 +7,7 @@ Status of the milestones in `AGENTS.md`, with the validation that was actually r
 | M0 — Contracts | Done |
 | M1 — Foundation | Done |
 | M2 — Persistence | Done |
-| M3 — Bootstrap | Not started |
+| M3 — Bootstrap | Done |
 | M4 — Monitoring | Not started |
 | M5 — Usable UI | Not started |
 | M6 — Desktop release | Not started |
@@ -56,6 +56,24 @@ dotnet test ArbetsWatch.slnx   → 66 passed
 dotnet format --verify-no-changes → ok
 ```
 
+## M3 — Bootstrap
+
+- `JobStreamClient`: `application/jsonl`, line-by-line parsing, explicit-offset query bounds, a 2-minute read-stall watchdog, and failures classified as transient, rate-limited (`Retry-After`) or permanent (4xx).
+- `RequestGate`: one shared minimum spacing (60 s) and server back-off for every request.
+- `SyncEngine.LoadSnapshotAsync`: captures the start before requesting, stages in 2,000-row transactions, replays `[start − 5 min, now − 2 min]` into staging (older states never overwrite newer ones; removals become tombstones), then activates and checkpoints atomically. `PollIntervalAsync` requests one bounded interval and commits it with its checkpoint.
+- Snapshot policy: first start, time-adapter change, gap over 7 days, or weekly reconciliation.
+- Review fixes (PR #4): valid JSON that isn't an ad fails as `InvalidData` (not retried like a transient error); the stall watchdog runs only while waiting for the network, not while staging writes run; corrupt compressed data is classified; connectivity failures are flagged (`IsConnectivity`); a completed download whose replay or activation failed is reused for 30 minutes instead of downloading ~450 MB again.
+- `PollIntervalAsync` (interval clamp, nothing due, unchanged checkpoint on failure, `Retry-After` deferral) is exercised by the M4 tests, not here.
+
+Validation:
+
+- Unit tests with a fake HTTP handler (request shape and offset encoding, status mapping, truncated record, dropped connection, stall, caller cancellation) and a fake JobStream (first baseline, interrupted snapshot after 4,000 staged rows leaves the old cache and checkpoint, edits/removals/older states during the download, reconciliation keeps read state and marks new IDs).
+- Live measurement through Core (Release, Windows 11): 40,849 ads in 73.4 s, peak working set 79 MB, database 31 MB, all-Sweden query 318 ms. Details in `docs/api-contracts.md`.
+
+```text
+dotnet test ArbetsWatch.slnx → 83 passed
+```
+
 ## Next step
 
-M3: streaming snapshot download into staging, overlap replay, atomic activation, first-run baseline, memory measurement.
+M4: refresh coordinator (timer, manual, resume, filter changes), retries with backoff and jitter, bounded catch-up.
