@@ -1,0 +1,321 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:ArbetsWatch.Desktop.ViewModels"
+        xmlns:c="using:ArbetsWatch.Desktop.Controls"
+        x:Class="ArbetsWatch.Desktop.Views.MainWindow"
+        x:DataType="vm:MainViewModel"
+        Title="ArbetsWatch"
+        Width="620" Height="760" MinWidth="420" MinHeight="360"
+        WindowDecorations="None"
+        CanResize="True"
+        Topmost="{Binding AlwaysOnTop}"
+        Background="Transparent">
+
+  <Window.KeyBindings>
+    <KeyBinding Gesture="F5" Command="{Binding RefreshCommand}" />
+    <KeyBinding Gesture="Ctrl+OemComma" Command="{Binding OpenSettingsCommand}" />
+    <KeyBinding Gesture="Ctrl+L" Command="{Binding TogglePlacesCommand}" />
+    <KeyBinding Gesture="Escape" Command="{Binding ClosePanelsCommand}" />
+  </Window.KeyBindings>
+
+  <!--
+    Layers: the surface carries the background opacity (transparency setting); the frame and everything above
+    it stay fully opaque. The surface opacity floor keeps every pixel hit-testable.
+  -->
+  <Panel>
+    <Panel Margin="6">
+      <Border Name="Surface" CornerRadius="{StaticResource RadiusLarge}" Background="{DynamicResource SpaceSurfaceBrush}" />
+      <Border CornerRadius="{StaticResource RadiusLarge}" BorderBrush="{DynamicResource HudFrameBrush}" BorderThickness="1"
+              BoxShadow="{DynamicResource HudGlowShadow}" ClipToBounds="True">
+        <DockPanel>
+          <!-- Header: drag to move -->
+          <Border DockPanel.Dock="Top" Padding="14,8,6,4" Background="Transparent" PointerPressed="OnHeaderPointerPressed">
+            <Grid ColumnDefinitions="*,Auto">
+              <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10" VerticalAlignment="Center">
+                <TextBlock Classes="brand" Text="◆ ARBETSWATCH" VerticalAlignment="Center" />
+                <Border Grid.Column="1" CornerRadius="10" Padding="8,2" BorderThickness="1" BorderBrush="{DynamicResource HudFrameBrush}"
+                        Background="{DynamicResource PanelBrush}" ToolTip.Tip="{Binding StatusTooltip}" VerticalAlignment="Center"
+                        HorizontalAlignment="Left" Margin="0,0,6,0">
+                  <Grid ColumnDefinitions="Auto,*" ColumnSpacing="6">
+                    <c:StatusDot Tone="{Binding StatusTone}" Width="7" Height="7" VerticalAlignment="Center" />
+                    <TextBlock Grid.Column="1" Classes="hud" Text="{Binding StatusText}" FontSize="10" LetterSpacing="1.2"
+                               VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
+                               AutomationProperties.Name="{Binding StatusText}" />
+                  </Grid>
+                </Border>
+              </Grid>
+              <StackPanel Grid.Column="1" Orientation="Horizontal">
+                <Button Name="RefreshButton" Classes="icon" Classes.spinning="{Binding ShowActivity}" Command="{Binding RefreshCommand}"
+                        ToolTip.Tip="Refresh (F5)" AutomationProperties.Name="Refresh">
+                  <PathIcon Data="{StaticResource IconRefresh}" />
+                </Button>
+                <Button Classes="icon" Command="{Binding OpenSettingsCommand}"
+                        ToolTip.Tip="Settings (Ctrl+,)" AutomationProperties.Name="Settings">
+                  <PathIcon Data="{StaticResource IconSettings}" />
+                </Button>
+                <Button Classes="icon" Command="{Binding HideCommand}"
+                        ToolTip.Tip="Hide to the notification area" AutomationProperties.Name="Hide">
+                  <PathIcon Data="{StaticResource IconMinimize}" />
+                </Button>
+              </StackPanel>
+            </Grid>
+          </Border>
+
+          <!-- Scan line: only while you wait (a refresh you asked for, or the first download). -->
+          <Panel DockPanel.Dock="Top" Height="2" Margin="14,0,14,6">
+            <Border Height="1" Background="{DynamicResource HudFrameBrush}" Opacity="0.5" VerticalAlignment="Center" />
+            <ProgressBar Classes="scan" IsVisible="{Binding ShowActivity}" />
+          </Panel>
+
+          <!-- Filter bar: places and worktime. -->
+          <Grid DockPanel.Dock="Top" Classes="filterbar" ColumnDefinitions="*,Auto,Auto,Auto" ColumnSpacing="6" Margin="12,0,12,8">
+            <Button Name="PlacesButton" Command="{Binding TogglePlacesCommand}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
+                    ToolTip.Tip="Choose län and kommuner (Ctrl+L)" AutomationProperties.Name="{Binding PlacesSummary, StringFormat='Places: {0}'}">
+              <Grid ColumnDefinitions="Auto,*" ColumnSpacing="6">
+                <PathIcon Data="{StaticResource IconPlace}" Width="12" Height="12" Foreground="{DynamicResource HudAccentBrush}" />
+                <TextBlock Grid.Column="1" Text="{Binding PlacesSummary}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+              </Grid>
+            </Button>
+            <ToggleButton Grid.Column="1" Content="Heltid" IsChecked="{Binding FullTime}"
+                          ToolTip.Tip="Full-time ads" AutomationProperties.Name="Full-time" />
+            <ToggleButton Grid.Column="2" Content="Deltid" IsChecked="{Binding PartTime}"
+                          ToolTip.Tip="Part-time ads" AutomationProperties.Name="Part-time" />
+            <ToggleButton Grid.Column="3" Content="Ej angiven" IsChecked="{Binding NotSpecified}"
+                          ToolTip.Tip="Ads that do not state full-time or part-time" AutomationProperties.Name="Worktime not specified" />
+          </Grid>
+
+          <!-- Footer: counts, mark read, notice, resize grip. -->
+          <Grid DockPanel.Dock="Bottom" ColumnDefinitions="*,Auto,Auto" Margin="14,2,4,4" MinHeight="22">
+            <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+              <StackPanel.IsVisible>
+                <MultiBinding Converter="{x:Static BoolConverters.And}">
+                  <Binding Path="!HasNotice" />
+                  <Binding Path="HasLoaded" />
+                  <Binding Path="!ShowFirstDownload" />
+                </MultiBinding>
+              </StackPanel.IsVisible>
+              <TextBlock Classes="secondary" Text="{Binding CountText}" VerticalAlignment="Center"
+                         ToolTip.Tip="Advertisements; one ad can offer several positions" />
+              <TextBlock Classes="secondary" Text="·" IsVisible="{Binding HasUnread}" VerticalAlignment="Center" />
+              <TextBlock Classes="secondary" Text="{Binding UnreadText}" IsVisible="{Binding HasUnread}" VerticalAlignment="Center"
+                         Foreground="{DynamicResource HudAccentBrush}" />
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" Spacing="5" IsVisible="{Binding HasNotice}" VerticalAlignment="Center">
+              <c:StatusDot Tone="Warning" Width="7" Height="7" VerticalAlignment="Center" />
+              <TextBlock Classes="secondary" Text="{Binding Notice}" />
+            </StackPanel>
+            <Button Grid.Column="1" Classes="link" Command="{Binding MarkVisibleReadCommand}" IsVisible="{Binding HasUnread}"
+                    ToolTip.Tip="Clear the new markers of the ads in this list only" AutomationProperties.Name="Mark these ads as read">
+              <TextBlock Text="Mark these as read" />
+            </Button>
+            <Border Grid.Column="2" Width="18" Height="18" Background="Transparent" Cursor="BottomRightCorner" Tag="SouthEast"
+                    PointerPressed="OnResizePointerPressed" ToolTip.Tip="Drag to resize">
+              <Path Data="M15,6 L6,15 M15,11 L11,15" Stroke="{DynamicResource HudFrameBrush}" StrokeThickness="1.5" />
+            </Border>
+          </Grid>
+
+          <!-- Body -->
+          <Panel>
+            <!-- First start: the whole list is downloaded once. -->
+            <StackPanel IsVisible="{Binding ShowFirstDownload}" Margin="20" Spacing="10" VerticalAlignment="Center">
+              <TextBlock Classes="heading" Text="Downloading all current job ads" />
+              <TextBlock TextWrapping="Wrap" Text="ArbetsWatch keeps its own copy of Platsbanken so filtering is instant and works offline. The first download is about 450 MB and usually takes a minute or two; later updates are small." />
+              <TextBlock Classes="secondary" Text="{Binding FirstDownloadText}" />
+            </StackPanel>
+
+            <!-- No data yet and not downloading (e.g. offline at first start). -->
+            <StackPanel IsVisible="{Binding ShowNoData}" Margin="20" Spacing="10" VerticalAlignment="Center">
+              <TextBlock Classes="heading" Text="No ads downloaded yet" />
+              <TextBlock TextWrapping="Wrap" Text="ArbetsWatch needs to download the current ads once before it can show anything. Check the connection, then try again." />
+              <Button Content="Try again" Command="{Binding RefreshCommand}" Classes="accent" HorizontalAlignment="Left" />
+            </StackPanel>
+
+            <StackPanel IsVisible="{Binding ShowChoosePlaces}" Margin="20" Spacing="10" VerticalAlignment="Center">
+              <TextBlock Classes="heading" Text="Choose where to look" />
+              <TextBlock TextWrapping="Wrap" Text="Pick one or more län or kommuner, or all of Sweden." />
+              <StackPanel Orientation="Horizontal" Spacing="8">
+                <Button Content="Choose places" Command="{Binding TogglePlacesCommand}" Classes="accent" />
+                <Button Content="All of Sweden" Command="{Binding ChooseAllSwedenCommand}" />
+              </StackPanel>
+            </StackPanel>
+
+            <StackPanel IsVisible="{Binding ShowNoMatches}" Margin="20" Spacing="10" VerticalAlignment="Center">
+              <TextBlock Classes="heading" Text="No ads match these filters" />
+              <TextBlock TextWrapping="Wrap" Text="Try more places or another worktime. New ads appear here as soon as they are found." />
+            </StackPanel>
+
+            <!-- The list. Updates arriving while you are scrolled down wait behind the pill at the top. -->
+            <Grid RowDefinitions="Auto,*" IsVisible="{Binding ShowList}">
+              <Button Classes="pill" Command="{Binding ShowHeldCommand}" IsVisible="{Binding HasHeldUpdates}"
+                      HorizontalAlignment="Center" Margin="0,0,0,6" AutomationProperties.Name="{Binding HeldText}">
+                <StackPanel Orientation="Horizontal" Spacing="5">
+                  <PathIcon Data="{StaticResource IconArrowUp}" Width="11" Height="11" />
+                  <TextBlock Text="{Binding HeldText}" />
+                </StackPanel>
+              </Button>
+              <ListBox Name="AdList" Grid.Row="1" Classes="hud" ItemsSource="{Binding Rows}" SelectedItem="{Binding SelectedRow}"
+                       Background="Transparent" Padding="6,0" AutomationProperties.Name="Job ads">
+                <ListBox.ItemTemplate>
+                  <DataTemplate x:DataType="vm:AdRowViewModel">
+                    <Panel ToolTip.Tip="Open on Platsbanken (Enter)" AutomationProperties.Name="{Binding AccessibleName}"
+                           Opacity="{Binding IsGone, Converter={x:Static vm:Converters.GoneOpacity}}">
+                      <Border Classes="flash" IsVisible="{Binding IsFlashing}" Margin="-8,-4" CornerRadius="8" IsHitTestVisible="False" />
+                      <Grid ColumnDefinitions="*,Auto">
+                        <StackPanel Spacing="2">
+                          <DockPanel>
+                            <Ellipse DockPanel.Dock="Left" Classes="unread" Width="7" Height="7" Margin="0,0,7,0" VerticalAlignment="Center"
+                                     IsVisible="{Binding Unread}" ToolTip.Tip="New since ArbetsWatch last checked" />
+                            <TextBlock Classes="title" Text="{Binding Title}" TextWrapping="Wrap" MaxLines="2" />
+                          </DockPanel>
+                          <TextBlock Classes="secondary" Text="{Binding Employer}" />
+                          <WrapPanel ItemSpacing="6" LineSpacing="3" Margin="0,2,0,0">
+                            <TextBlock Classes="secondary" Text="{Binding Place}" VerticalAlignment="Center" />
+                            <Border Classes="chip" Classes.fulltime="{Binding IsFullTime}" Classes.parttime="{Binding IsPartTime}">
+                              <TextBlock Text="{Binding Worktime}" />
+                            </Border>
+                            <Border Classes="chip" IsVisible="{Binding IsGone}">
+                              <TextBlock Text="No longer listed here" />
+                            </Border>
+                          </WrapPanel>
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Margin="10,1,0,0" Spacing="2" VerticalAlignment="Top">
+                          <TextBlock Classes="secondary" Text="{Binding PublishedText}" HorizontalAlignment="Right"
+                                     ToolTip.Tip="Published (Swedish time)" />
+                          <Button Classes="icon rowlink" Command="{Binding $parent[ListBox].((vm:MainViewModel)DataContext).OpenAdCommand}"
+                                  CommandParameter="{Binding}" Focusable="False" HorizontalAlignment="Right"
+                                  ToolTip.Tip="Open on Platsbanken" AutomationProperties.Name="{Binding Title, StringFormat='Open {0} on Platsbanken'}">
+                            <PathIcon Data="{StaticResource IconOpenExternal}" />
+                          </Button>
+                        </StackPanel>
+                      </Grid>
+                    </Panel>
+                  </DataTemplate>
+                </ListBox.ItemTemplate>
+              </ListBox>
+            </Grid>
+
+            <!-- Places panel -->
+            <Border Classes="overlay" IsVisible="{Binding IsPlacesOpen}" Background="{DynamicResource OverlayBrush}" Margin="6,0,6,4"
+                    CornerRadius="{StaticResource RadiusMedium}" BorderBrush="{DynamicResource HudFrameBrush}" BorderThickness="1">
+              <DockPanel DataContext="{Binding Places}" x:DataType="vm:PlacePickerViewModel" Margin="10,8">
+                <Grid DockPanel.Dock="Top" ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="6" Margin="0,0,0,8">
+                  <Button Classes="icon" Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).ClosePanelsCommand}"
+                          ToolTip.Tip="Back to the list (Esc)" AutomationProperties.Name="Back to the list">
+                    <PathIcon Data="{StaticResource IconBack}" />
+                  </Button>
+                  <TextBox Name="PlaceSearch" Grid.Column="1" Classes="search" Text="{Binding SearchText}" PlaceholderText="Search län or kommun"
+                           AutomationProperties.Name="Search places" />
+                  <CheckBox Grid.Column="2" Content="All of Sweden" IsChecked="{Binding AllSweden}" />
+                  <Button Grid.Column="3" Classes="link" Command="{Binding ClearPlacesCommand}" ToolTip.Tip="Remove all place choices">
+                    <TextBlock Text="Clear" />
+                  </Button>
+                </Grid>
+                <TextBlock DockPanel.Dock="Top" Classes="secondary" TextWrapping="Wrap" Margin="2,0,2,6"
+                           Text="Tick a län for the whole län (including ads without a kommun), or open it and tick single kommuner." />
+                <ScrollViewer>
+                  <ItemsControl ItemsSource="{Binding Regions}">
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate x:DataType="vm:RegionNodeViewModel">
+                        <StackPanel IsVisible="{Binding IsVisible}">
+                          <Grid ColumnDefinitions="Auto,*,Auto,Auto">
+                            <CheckBox IsChecked="{Binding IsSelected}" AutomationProperties.Name="{Binding Label, StringFormat='Whole {0}'}"
+                                      ToolTip.Tip="The whole län" />
+                            <TextBlock Grid.Column="1" Text="{Binding Label}" FontWeight="SemiBold" VerticalAlignment="Center" />
+                            <TextBlock Grid.Column="2" Classes="secondary" Text="{Binding SelectionText}" VerticalAlignment="Center" Margin="6,0" />
+                            <ToggleButton Grid.Column="3" Classes="icon" IsChecked="{Binding IsExpanded}" Background="Transparent" BorderThickness="0"
+                                          ToolTip.Tip="Show kommuner" AutomationProperties.Name="{Binding Label, StringFormat='Show kommuner in {0}'}">
+                              <TextBlock Text="{Binding IsExpanded, Converter={x:Static vm:Converters.ExpandGlyph}}" FontSize="11" />
+                            </ToggleButton>
+                          </Grid>
+                          <ItemsControl ItemsSource="{Binding Municipalities}" IsVisible="{Binding IsExpanded}" Margin="28,0,0,4">
+                            <ItemsControl.ItemsPanel>
+                              <ItemsPanelTemplate>
+                                <WrapPanel />
+                              </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                              <DataTemplate x:DataType="vm:MunicipalityNodeViewModel">
+                                <CheckBox Content="{Binding Label}" IsChecked="{Binding IsChecked}" IsEnabled="{Binding !IsCovered}"
+                                          IsVisible="{Binding IsVisible}" MinWidth="150" Margin="0,0,8,0" />
+                              </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                          </ItemsControl>
+                        </StackPanel>
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+                </ScrollViewer>
+              </DockPanel>
+            </Border>
+
+            <!-- Settings panel -->
+            <Border Classes="overlay" IsVisible="{Binding IsSettingsOpen}" Background="{DynamicResource OverlayBrush}" Margin="6,0,6,4"
+                    CornerRadius="{StaticResource RadiusMedium}" BorderBrush="{DynamicResource HudFrameBrush}" BorderThickness="1">
+              <DockPanel Margin="10,8">
+                <Grid DockPanel.Dock="Top" ColumnDefinitions="Auto,*" ColumnSpacing="6" Margin="0,0,0,6">
+                  <Button Classes="icon" Command="{Binding ClosePanelsCommand}" ToolTip.Tip="Back to the list (Esc)" AutomationProperties.Name="Back to the list">
+                    <PathIcon Data="{StaticResource IconBack}" />
+                  </Button>
+                  <TextBlock Grid.Column="1" Classes="heading" Text="Settings" VerticalAlignment="Center" />
+                </Grid>
+                <ScrollViewer>
+                  <StackPanel Spacing="14" Margin="6,4">
+                    <StackPanel Spacing="6">
+                      <TextBlock Classes="hud" Text="MONITORING" />
+                      <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                        <TextBlock Text="Check for new ads every (minutes)" VerticalAlignment="Center" TextWrapping="Wrap" />
+                        <NumericUpDown Grid.Column="1" Value="{Binding PollMinutes}" Minimum="1" Maximum="60" Increment="1" FormatString="0"
+                                       Width="120" AutomationProperties.Name="Check interval in minutes" />
+                      </Grid>
+                      <TextBlock Classes="secondary" TextWrapping="Wrap"
+                                 Text="Arbetsförmedlingen allows one update request per minute; manual refreshes share that limit." />
+                      <CheckBox Content="Pause monitoring" IsChecked="{Binding Paused}" />
+                      <TextBlock Classes="secondary" Text="{Binding SyncDetails}" />
+                    </StackPanel>
+                    <StackPanel Spacing="6">
+                      <TextBlock Classes="hud" Text="APPEARANCE" />
+                      <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                        <TextBlock Text="Theme" VerticalAlignment="Center" />
+                        <ComboBox Grid.Column="1" ItemsSource="{Binding ThemeOptions}" SelectedIndex="{Binding ThemeIndex}" Width="120"
+                                  AutomationProperties.Name="Theme" />
+                      </Grid>
+                      <CheckBox Content="Transparent background" IsChecked="{Binding Transparent}" />
+                      <CheckBox Content="Always on top" IsChecked="{Binding AlwaysOnTop}" />
+                    </StackPanel>
+                    <StackPanel Spacing="6">
+                      <TextBlock Classes="hud" Text="DATA" />
+                      <TextBlock Classes="secondary" Text="{Binding DataDirectory}" TextWrapping="Wrap" />
+                      <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Button Content="Open data folder" Command="{Binding OpenDataFolderCommand}" />
+                        <Button Content="Quit ArbetsWatch" Command="{Binding QuitCommand}" />
+                      </StackPanel>
+                    </StackPanel>
+                    <StackPanel Spacing="4">
+                      <TextBlock Classes="hud" Text="ABOUT" />
+                      <TextBlock Classes="secondary" Text="{Binding VersionText}" />
+                      <TextBlock Classes="secondary" Text="{Binding TaxonomyText}" TextWrapping="Wrap" />
+                      <TextBlock Classes="secondary" TextWrapping="Wrap"
+                                 Text="Ads come from Arbetsförmedlingen's open JobTech APIs. &quot;New&quot; means newly found by this app while it was running." />
+                    </StackPanel>
+                  </StackPanel>
+                </ScrollViewer>
+              </DockPanel>
+            </Border>
+          </Panel>
+        </DockPanel>
+      </Border>
+    </Panel>
+
+    <!-- Resize from every edge and corner: thin strips in the transparent margin around the surface. -->
+    <Panel>
+      <Border Classes="resize" PointerPressed="OnResizePointerPressed" Tag="North" Cursor="TopSide" Height="7" VerticalAlignment="Top" Margin="14,0" />
+      <Border Classes="resize" PointerPressed="OnResizePointerPressed" Tag="South" Cursor="BottomSide" Height="7" VerticalAlignment="Bottom" Margin="14,0" />
+      <Border Classes="resize" PointerPressed="OnResizePointerPressed" Tag="West" Cursor="LeftSide" Width="7" HorizontalAlignment="Left" Margin="0,14" />
+      <Border Classes="resize" PointerPressed="OnResizePointerPressed" Tag="East" Cursor="RightSide" Width="7" HorizontalAlignment="Right" Margin="0,14" />
+      <Border Classes="resize" PointerPressed="OnResizePointerPressed" Tag="NorthWest" Cursor="TopLeftCorner" Width="14" Height="14" HorizontalAlignment="Left" VerticalAlignment="Top" />
+      <Border Classes="resize" PointerPressed="OnResizePointerPressed" Tag="NorthEast" Cursor="TopRightCorner" Width="14" Height="14" HorizontalAlignment="Right" VerticalAlignment="Top" />
+      <Border Classes="resize" PointerPressed="OnResizePointerPressed" Tag="SouthWest" Cursor="BottomLeftCorner" Width="14" Height="14" HorizontalAlignment="Left" VerticalAlignment="Bottom" />
+      <Border Classes="resize" PointerPressed="OnResizePointerPressed" Tag="SouthEast" Cursor="BottomRightCorner" Width="14" Height="14" HorizontalAlignment="Right" VerticalAlignment="Bottom" />
+    </Panel>
+  </Panel>
+</Window>

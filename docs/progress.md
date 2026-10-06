@@ -9,7 +9,7 @@ Status of the milestones in `AGENTS.md`, with the validation that was actually r
 | M2 — Persistence | Done |
 | M3 — Bootstrap | Done |
 | M4 — Monitoring | Done |
-| M5 — Usable UI | Not started |
+| M5 — Usable UI | Done |
 | M6 — Desktop release | Not started |
 
 ## M0 — Contracts
@@ -82,6 +82,33 @@ Validation: coordinator tests with a fake clock (startup snapshot, timer, coales
 dotnet test ArbetsWatch.slnx → 97 passed
 ```
 
+## M5 — Usable UI
+
+- Borderless resizable window (620 × 760) in Repo Watch's HUD style: drag header with status pill, scan line only while you wait, filter bar, virtualized list, footer with counts, resize edges and grip. Light and dark themes.
+- Places panel with search: tick a län for the whole län, or single kommuner; All of Sweden; summary such as "Göteborg, Mölndal, Hallands län". Ticking a kommun while All of Sweden is on switches to that choice.
+- Worktime chips Heltid / Deltid / Ej angiven; at least one stays selected.
+- Rows: two-line title, employer, place (or neutral label), worktime chip, Swedish publication time, unread dot, one-time glow for newly detected ads. Double-click, Enter or the row button opens the validated Platsbanken page and marks the ad read. "Mark these as read" clears only the current results.
+- Updates arriving while you are scrolled down are held behind a "N new ads — show" pill; rows that left the results are dimmed until then.
+- States: first download (with count), no data (retry), choose places, no matches, offline/failed notice with the last data kept.
+- Settings panel: interval 1–60 min, pause, theme, transparency, always on top, data folder, quit, version and taxonomy version.
+- Presentation rules live in Core (`AdLinkPolicy`, `PlaceSelection`, `DisplayText`) and are unit tested.
+
+Validation on Windows 11 (Debug build, scratch data folder via `ARBETSWATCH_DATA_DIR`), driven through Windows UI Automation and captured with `PrintWindow` (window only):
+
+- First start downloaded 40,859 ads in 78 s while showing the download state; the list then showed 40,633 Swedish ads newest first.
+- Places search "teborg"/"ndal"/"Halland", ticking Göteborg, Mölndal and the whole Hallands län, then Deltid only: 621 ads from Göteborg, Mölndal and Kungsbacka (`docs/images/filtered-goteborg-molndal-halland-deltid.png`).
+- Hide to tray, then a second launch exited with code 0 and showed the running window (one process).
+- Quit from Settings logged "Stopped"; relaunch restored places, worktime, window bounds and the list without a new snapshot.
+- Startup poll after more than 5 minutes; a manual refresh waited for the 60 s request spacing, then applied 17 records.
+- Dark theme (`docs/images/list-dark.png`).
+
+Not verified: opening an ad in the browser (not clicked, to avoid launching your browser), held updates while scrolled (no matching new ads arrived during the session), transparency on/off, high contrast and reduced motion.
+
+```text
+dotnet build ArbetsWatch.slnx → 0 warnings, 0 errors
+dotnet test ArbetsWatch.slnx  → 118 passed
+```
+
 ## Next step
 
-M5: main window with filters, virtualized list, counts, refresh and browser opening.
+M6: tray and window behavior checks (sleep/resume, offline restart, DPI/monitor changes), transparency, self-contained Windows ZIP.
