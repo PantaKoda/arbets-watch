@@ -41,6 +41,13 @@ public sealed record AppPreferences
 
 public static class PreferencesStore
 {
+    /// <summary>A missing or empty worktime selection would show nothing: it falls back to all categories.</summary>
+    private static WorktimeSet Worktime(WorktimeSet? stored)
+    {
+        var value = (stored ?? WorktimeSet.All) & WorktimeSet.All;
+        return value == WorktimeSet.None ? WorktimeSet.All : value;
+    }
+
     private const string Key = "app";
 
     public static async Task<AppPreferences> LoadAsync(AdStore store, CancellationToken cancellationToken = default) =>
@@ -78,10 +85,10 @@ public static class PreferencesStore
             var filter = dto.Filter is { } f
                 ? new AdFilter
                 {
-                    AllSweden = f.AllSweden,
+                    AllSweden = f.AllSweden ?? false,
                     RegionIds = new HashSet<string>(f.RegionIds ?? [], StringComparer.Ordinal),
                     MunicipalityIds = new HashSet<string>(f.MunicipalityIds ?? [], StringComparer.Ordinal),
-                    Worktime = f.Worktime & WorktimeSet.All,
+                    Worktime = Worktime(f.Worktime),
                 }
                 : AdFilter.Default;
 
@@ -103,7 +110,7 @@ public static class PreferencesStore
     }
 }
 
-internal sealed record FilterDto(bool AllSweden, string[]? RegionIds, string[]? MunicipalityIds, WorktimeSet Worktime);
+internal sealed record FilterDto(bool? AllSweden, string[]? RegionIds, string[]? MunicipalityIds, WorktimeSet? Worktime);
 
 internal sealed record PreferencesDto(
     FilterDto? Filter,

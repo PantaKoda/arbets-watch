@@ -50,6 +50,12 @@ public sealed class PreferencesTests
         Assert.Equal(expected, PreferencesStore.Deserialize($$"""{"pollMinutes":{{stored}}}""").PollMinutes);
 
     [Theory]
+    [InlineData("""{"filter":{"allSweden":true}}""")]
+    [InlineData("""{"filter":{"allSweden":true,"worktime":"None"}}""")]
+    public void Missing_or_empty_worktime_means_all(string json) =>
+        Assert.Equal(WorktimeSet.All, PreferencesStore.Deserialize(json).Filter.Worktime);
+
+    [Theory]
     [InlineData("not json")]
     [InlineData("""{"filter":{"allSweden":"yes"}}""")]
     [InlineData("""{"theme":"Neon"}""")]
