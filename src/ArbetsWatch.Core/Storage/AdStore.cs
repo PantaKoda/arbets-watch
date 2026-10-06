@@ -38,7 +38,22 @@ public sealed class AdStore : IDisposable
         }.ToString();
 
         var store = new AdStore(connectionString, policy ?? new StorePolicy());
-        using var connection = store.Connect();
+        try
+        {
+            store.Initialize();
+        }
+        catch
+        {
+            store.Dispose();
+            throw;
+        }
+
+        return store;
+    }
+
+    private void Initialize()
+    {
+        using var connection = Connect();
         using (var pragma = connection.CreateCommand())
         {
             pragma.CommandText = "PRAGMA journal_mode = WAL;";
@@ -46,7 +61,6 @@ public sealed class AdStore : IDisposable
         }
 
         Schema.Migrate(connection);
-        return store;
     }
 
     // ---- Sync state -------------------------------------------------------------------------------------
@@ -306,6 +320,24 @@ public sealed class AdStore : IDisposable
             Execute(connection, transaction, "UPDATE ad_state SET unread = 0 WHERE id = $id", ("$id", id)),
             cancellationToken);
 
+    /// <summary>
+    /// Clears unread for exactly these IDs, in one transaction: the rows the user saw. Ads committed after the list
+    /// was captured keep their marker.
+    /// </summary>
+    public Task<int> MarkReadAsync(IReadOnlyCollection<string> ids, CancellationToken cancellationToken = default) =>
+        WriteAsync((connection, transaction) =>
+        {
+            using var command = Command(connection, transaction, "UPDATE ad_state SET unread = 0 WHERE id = $id AND unread = 1", "$id");
+            var changed = 0;
+            foreach (var id in ids)
+            {
+                command.Parameters["$id"].Value = id;
+                changed += command.ExecuteNonQuery();
+            }
+
+            return changed;
+        }, cancellationToken);
+
     /// <summary>Clears unread for the ads currently matching <paramref name="filter"/> only.</summary>
     public Task<int> MarkMatchingReadAsync(AdFilter filter, DateTimeOffset now, CancellationToken cancellationToken = default) =>
         WriteAsync((connection, transaction) =>
@@ -350,13 +382,22 @@ public sealed class AdStore : IDisposable
     private SqliteConnection Connect()
     {
         var connection = new SqliteConnection(_connectionString);
-        connection.Open();
+        try
+        {
+            connection.Open();
 
-        // Per connection (unlike journal_mode, which is stored in the file): safe with WAL, fewer fsyncs.
-        using var pragma = connection.CreateCommand();
-        pragma.CommandText = "PRAGMA synchronous = NORMAL;";
-        pragma.ExecuteNonQuery();
-        return connection;
+            // Per connection (unlike journal_mode, which is stored in the file): safe with WAL, fewer fsyncs.
+            using var pragma = connection.CreateCommand();
+            pragma.CommandText = "PRAGMA synchronous = NORMAL;";
+            pragma.ExecuteNonQuery();
+            return connection;
+        }
+        catch
+        {
+            // Never leak an open handle (an unreadable file must stay movable).
+            connection.Dispose();
+            throw;
+        }
     }
 
     /// <summary>The unread decision for a staged row aliased <c>s</c>, as SQL (needs <c>$now</c> and <c>$unreadAllowed</c>).</summary>

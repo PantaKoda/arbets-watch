@@ -109,6 +109,8 @@ Validation on Windows 11 (Debug build, scratch data folder via `ARBETSWATCH_DATA
 - Startup poll after more than 5 minutes; a manual refresh waited for the 60 s request spacing, then applied 17 records.
 - Dark theme (`docs/images/list-dark.png`).
 
+Review fixes (PR #6): "Mark these as read" clears exactly the rows shown (`AdStore.MarkReadAsync(ids)`), never held-back or newly committed ads; an unreadable database is moved aside only when SQLite reports it corrupt or not a database, never paired with old sidecar files, and any other open error stops with a message box and changes nothing (`StoreOpener`, tested; a leaked connection on a failed open was fixed too); a newer-version database also shows a message instead of exiting silently; filter changes reload the list immediately; read-state write failures show a notice instead of crashing; only a user close hides to the tray, so sign-out and shutdown close normally; resume detection is a tested `ResumeDetector` on `TimeProvider`; shutdown steps can't skip each other. Live: a garbage `arbetswatch.db` started fresh with the notice and the old file kept as `arbetswatch.db.unreadable-<time>`.
+
 Not verified: opening an ad in the browser (not clicked, to avoid launching your browser), held updates while scrolled (no matching new ads arrived during the session), transparency on/off, high contrast and reduced motion.
 
 ```text
