@@ -8,7 +8,7 @@ Status of the milestones in `AGENTS.md`, with the validation that was actually r
 | M1 — Foundation | Done |
 | M2 — Persistence | Done |
 | M3 — Bootstrap | Done |
-| M4 — Monitoring | Not started |
+| M4 — Monitoring | Done |
 | M5 — Usable UI | Not started |
 | M6 — Desktop release | Not started |
 
@@ -74,6 +74,21 @@ Validation:
 dotnet test ArbetsWatch.slnx → 83 passed
 ```
 
+## M4 — Monitoring
+
+- `RefreshCoordinator`: one loop owns timer, manual refresh, resume, retry and startup; at most one mutation at a time. Requests arriving while a refresh runs are absorbed by it. Filter changes and "mark matching as read" wait for the running batch, so a batch is judged against one filter.
+- Restart resumes the schedule from the last success instead of requesting immediately.
+- Bounded catch-up: up to 16 gated requests per cycle, each interval at most 12 h; gaps over 7 days use a snapshot.
+- Failures keep the cached list visible. Transient: 30 s doubling, capped at the poll interval, ±25 % jitter, never shorter than `Retry-After`. Rejected (4xx): automatic retries stop until a manual refresh. Status phases: Idle, LoadingSnapshot, Updating, Paused, Offline, Failed.
+- Expiry is applied at every commit and at query time, so expired ads disappear without network access.
+- Review fixes (PR #5): the coordinator's lock is held only around each commit (`CommitScope`), never across downloads, throttling waits or a whole catch-up, so filter changes and mark-read stay instant; the loop survives startup read failures, unexpected exceptions and failing event subscribers; jitter is applied before clamping to `Retry-After`; invalid data and rejected snapshots retry after at least 30 minutes; offline is detected from the client's connectivity flag (stalls and dropped connections included); background reconciliation snapshots are not shown as foreground; pausing stops a running catch-up between steps.
+
+Validation: coordinator tests with a fake clock (startup snapshot, timer, coalesced manual refreshes, transient backoff window, permanent stop and manual recovery, pause/unpause, filter change during a running batch, 30-hour catch-up in three contiguous ≤ 12 h intervals, restart scheduling) and engine tests (autumn DST intervals with exact query strings, nothing requested before due, `Retry-After` deferring the shared gate without moving the checkpoint, gate spacing, sparse removal plus expiry in one poll).
+
+```text
+dotnet test ArbetsWatch.slnx → 97 passed
+```
+
 ## Next step
 
-M4: refresh coordinator (timer, manual, resume, filter changes), retries with backoff and jitter, bounded catch-up.
+M5: main window with filters, virtualized list, counts, refresh and browser opening.
