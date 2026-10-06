@@ -1,0 +1,195 @@
+{
+  "id": "90000001",
+  "external_id": null,
+  "original_id": null,
+  "webpage_url": "https://arbetsformedlingen.se/platsbanken/annonser/90000001",
+  "logo_url": null,
+  "headline": "Systemutvecklare till testföretaget",
+  "application_deadline": "2026-11-06T23:59:59",
+  "number_of_vacancies": 1,
+  "description": {
+    "text": "Synthetic description for tests.",
+    "text_formatted": "<p>Synthetic description for tests.</p>",
+    "company_information": null,
+    "needs": null,
+    "requirements": null,
+    "conditions": null
+  },
+  "employment_type": {
+    "concept_id": "kpPX_CNN_gDU",
+    "label": "Tillsvidareanställning (inkl. eventuell provanställning)",
+    "legacy_ams_taxonomy_id": null
+  },
+  "salary_type": {
+    "concept_id": "oG8G_9cW_nRf",
+    "label": "Fast månads- vecko- eller timlön",
+    "legacy_ams_taxonomy_id": "1"
+  },
+  "salary_description": null,
+  "duration": {
+    "concept_id": "a7uU_j21_mkL",
+    "label": "Tills vidare",
+    "legacy_ams_taxonomy_id": "1"
+  },
+  "working_hours_type": {
+    "concept_id": "6YE1_gAC_R2G",
+    "label": "Heltid",
+    "legacy_ams_taxonomy_id": "1"
+  },
+  "scope_of_work": {
+    "min": 100,
+    "max": 100
+  },
+  "access": null,
+  "employer": {
+    "phone_number": null,
+    "email": null,
+    "url": null,
+    "organization_number": "5560000000",
+    "name": "Testföretaget AB",
+    "workplace": "Testföretaget AB"
+  },
+  "application_details": {
+    "information": null,
+    "reference": null,
+    "email": null,
+    "via_af": true,
+    "url": null,
+    "other": null
+  },
+  "experience_required": true,
+  "access_to_own_car": false,
+  "driving_license_required": true,
+  "driving_license": [
+    {
+      "concept_id": "VTK8_WRx_GcM",
+      "label": "B",
+      "legacy_ams_taxonomy_id": "3"
+    }
+  ],
+  "occupation": {
+    "concept_id": "rQds_YGd_quU",
+    "label": "Mjukvaruutvecklare",
+    "legacy_ams_taxonomy_id": "80"
+  },
+  "occupation_group": {
+    "concept_id": "DJh5_yyF_hEM",
+    "label": "Mjukvaru- och systemutvecklare m.fl.",
+    "legacy_ams_taxonomy_id": "2512"
+  },
+  "occupation_field": {
+    "concept_id": "apaJ_2ja_LuF",
+    "label": "Data/IT",
+    "legacy_ams_taxonomy_id": "3"
+  },
+  "workplace_address": {
+    "municipality": "Göteborg",
+    "municipality_code": "1480",
+    "municipality_concept_id": "PVZL_BQT_XtL",
+    "region": "Västra Götalands län",
+    "region_code": "14",
+    "region_concept_id": "zdoY_6u5_Krt",
+    "country": "Sverige",
+    "country_code": "199",
+    "country_concept_id": "i46j_HmG_v64",
+    "street_address": "Testgatan 1",
+    "postcode": "41100",
+    "city": "GÖTEBORG",
+    "coordinates": [
+      11.94783039724701,
+      57.719684381111946
+    ]
+  },
+  "must_have": {
+    "skills": [
+      {
+        "weight": null,
+        "concept_id": "KRDJ_nhm_wLb",
+        "label": "Amazon Web Services (AWS), molnplattform",
+        "legacy_ams_taxonomy_id": "609418"
+      },
+      {
+        "weight": null,
+        "concept_id": "hYyY_NPi_H65",
+        "label": "Apache Kafka, streaming-plattform",
+        "legacy_ams_taxonomy_id": "609409"
+      },
+      {
+        "weight": null,
+        "concept_id": "jCsR_WQX_CKD",
+        "label": "Java, programmeringsspråk",
+        "legacy_ams_taxonomy_id": "200028"
+      }
+    ],
+    "languages": [
+      {
+        "weight": 10,
+        "concept_id": "NVxJ_hLg_TYS",
+        "label": "Engelska",
+        "legacy_ams_taxonomy_id": "283"
+      }
+    ],
+    "work_experiences": [
+      {
+        "weight": 10,
+        "concept_id": "rQds_YGd_quU",
+        "label": "Mjukvaruutvecklare",
+        "legacy_ams_taxonomy_id": "80"
+      }
+    ],
+    "education": [
+      {
+        "weight": 10,
+        "concept_id": "FHxz_HhN_3Mk",
+        "label": "Data",
+        "legacy_ams_taxonomy_id": "14"
+      }
+    ],
+    "education_level": [
+      {
+        "weight": 10,
+        "concept_id": "asZm_TEQ_Srk",
+        "label": "Eftergymnasial utbildning två år eller längre",
+        "legacy_ams_taxonomy_id": "6"
+      }
+    ]
+  },
+  "nice_to_have": {
+    "skills": [
+      {
+        "weight": null,
+        "concept_id": "qfkh_ZRK_w4W",
+        "label": "Python, programmeringsspråk",
+        "legacy_ams_taxonomy_id": "605952"
+      }
+    ],
+    "languages": [
+      {
+        "weight": 5,
+        "concept_id": "zSLA_vw2_FXN",
+        "label": "Svenska",
+        "legacy_ams_taxonomy_id": "502"
+      }
+    ],
+    "work_experiences": [],
+    "education": [],
+    "education_level": []
+  },
+  "application_contacts": [
+    {
+      "name": "Test Person",
+      "description": null,
+      "email": "test@example.invalid",
+      "telephone": null,
+      "contact_type": null
+    }
+  ],
+  "publication_date": "2026-10-06T19:02:25",
+  "last_publication_date": "2026-11-06T23:59:59",
+  "removed": false,
+  "removed_date": null,
+  "source_type": "VIA_ANNONSERA",
+  "timestamp": 1791300145951,
+  "identified_language": "en",
+  "label": []
+}
