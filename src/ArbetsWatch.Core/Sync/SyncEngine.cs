@@ -47,8 +47,8 @@ public sealed record SnapshotProgress(int AdsReceived);
 
 /// <summary>
 /// Executes one synchronization step against the store: a full snapshot, or one bounded stream interval.
-/// Scheduling, coalescing and retries belong to <see cref="RefreshCoordinator"/>; this class assumes it is
-/// never called concurrently.
+/// Scheduling, coalescing and retries belong to the refresh coordinator (M4); this class assumes it is never
+/// called concurrently.
 /// </summary>
 public sealed class SyncEngine(
     AdStore store,
@@ -58,6 +58,12 @@ public sealed class SyncEngine(
     SyncOptions options,
     ILogger<SyncEngine> logger)
 {
+    /// <summary>A completed snapshot download still in staging: reused when only the replay or activation failed.</summary>
+    private (DateTimeOffset Start, int Received)? _completedStaging;
+
+    /// <summary>How long a completed staging set may be reused instead of downloading the snapshot again.</summary>
+    public static readonly TimeSpan StagingReuseWindow = TimeSpan.FromMinutes(30);
+
     public SyncOptions Options => options;
 
     /// <summary>Whether the next step must be a snapshot, and why (null when an interval is enough).</summary>
@@ -93,6 +99,15 @@ public sealed class SyncEngine(
     /// </summary>
     public async Task<SyncOutcome> LoadSnapshotAsync(AdFilter filter, IProgress<SnapshotProgress>? progress, CancellationToken cancellationToken)
     {
+        // A download that completed but whose replay request failed (e.g. throttled) is reused for a while
+        // instead of fetching ~450 MB again.
+        if (_completedStaging is { } completed && time.GetUtcNow() - completed.Start < StagingReuseWindow)
+        {
+            logger.LogInformation("Reusing the staged snapshot from {Start:o} ({Count} ads)", completed.Start, completed.Received);
+            return await ReplayAndActivateAsync(filter, completed.Start, completed.Received, cancellationToken).ConfigureAwait(false);
+        }
+
+        _completedStaging = null;
         await store.ResetStagingAsync(cancellationToken).ConfigureAwait(false);
 
         await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -133,7 +148,12 @@ public sealed class SyncEngine(
         }
 
         logger.LogInformation("Snapshot received {Count} ads", received);
+        _completedStaging = (start, received);
+        return await ReplayAndActivateAsync(filter, start, received, cancellationToken).ConfigureAwait(false);
+    }
 
+    private async Task<SyncOutcome> ReplayAndActivateAsync(AdFilter filter, DateTimeOffset start, int received, CancellationToken cancellationToken)
+    {
         // Changes made while the snapshot was downloading. The end is fixed before the request.
         await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         var end = IntervalEnd();
@@ -146,7 +166,18 @@ public sealed class SyncEngine(
 
         // If the download was faster than the safety lag, the checkpoint stays before the snapshot start and the
         // next interval covers the download period instead.
-        var result = await store.ActivateSnapshotAsync(filter, start, end, time.GetUtcNow(), cancellationToken).ConfigureAwait(false);
+        ApplyResult result;
+        try
+        {
+            result = await store.ActivateSnapshotAsync(filter, start, end, time.GetUtcNow(), cancellationToken).ConfigureAwait(false);
+        }
+        catch (SnapshotRejectedException)
+        {
+            _completedStaging = null; // the staged data itself is unusable
+            throw;
+        }
+
+        _completedStaging = null;
         logger.LogInformation("Snapshot activated: {Result}", result);
         return new SyncOutcome(SyncKind.Snapshot, end, result, received)
         {

@@ -62,6 +62,8 @@ dotnet format --verify-no-changes → ok
 - `RequestGate`: one shared minimum spacing (60 s) and server back-off for every request.
 - `SyncEngine.LoadSnapshotAsync`: captures the start before requesting, stages in 2,000-row transactions, replays `[start − 5 min, now − 2 min]` into staging (older states never overwrite newer ones; removals become tombstones), then activates and checkpoints atomically. `PollIntervalAsync` requests one bounded interval and commits it with its checkpoint.
 - Snapshot policy: first start, time-adapter change, gap over 7 days, or weekly reconciliation.
+- Review fixes (PR #4): valid JSON that isn't an ad fails as `InvalidData` (not retried like a transient error); the stall watchdog runs only while waiting for the network, not while staging writes run; corrupt compressed data is classified; connectivity failures are flagged (`IsConnectivity`); a completed download whose replay or activation failed is reused for 30 minutes instead of downloading ~450 MB again.
+- `PollIntervalAsync` (interval clamp, nothing due, unchanged checkpoint on failure, `Retry-After` deferral) is exercised by the M4 tests, not here.
 
 Validation:
 

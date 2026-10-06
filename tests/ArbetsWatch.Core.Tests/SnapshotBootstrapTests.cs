@@ -110,6 +110,43 @@ public sealed class SnapshotBootstrapTests
     }
 
     [Fact]
+    public async Task Failed_replay_reuses_the_completed_download()
+    {
+        using var temp = new TempStore();
+        _stream.Snapshot = [Fixtures.Ad("1"), Fixtures.Ad("2")];
+        _stream.AfterSnapshot = () => _time.Advance(TimeSpan.FromMinutes(3));
+        var fail = true;
+        _stream.Changes = (_, _) => fail ? throw new JobStreamException(FailureKind.RateLimited, "slow down") : [];
+        var engine = Engine(temp);
+
+        await Assert.ThrowsAsync<JobStreamException>(() => engine.LoadSnapshotAsync(AdFilter.Default, null, CancellationToken.None));
+        Assert.Empty(await temp.RowsAsync(now: _time.GetUtcNow()));
+
+        fail = false;
+        _time.Advance(TimeSpan.FromMinutes(2));
+        var outcome = await engine.LoadSnapshotAsync(AdFilter.Default, null, CancellationToken.None);
+
+        Assert.Equal(1, _stream.SnapshotRequests);
+        Assert.Equal(2, outcome.Received);
+        Assert.Equal(2, (await temp.RowsAsync(now: _time.GetUtcNow())).Count);
+    }
+
+    [Fact]
+    public void Snapshot_reasons_cover_every_branch()
+    {
+        var engine = new SyncEngine(new TempStore().Store, _stream, new RequestGate(_time, TimeSpan.Zero), _time,
+            new SyncOptions { ReconcileEvery = TimeSpan.FromDays(3), SnapshotAfterGap = TimeSpan.FromDays(7) }, NullLogger<SyncEngine>.Instance);
+        var now = _time.GetUtcNow();
+        var fresh = new Storage.SyncState(now, now, now, true, Time.SwedishTime.AdapterVersion);
+
+        Assert.Null(engine.SnapshotReason(fresh));
+        Assert.Equal("first start", engine.SnapshotReason(fresh with { BaselineEstablished = false }));
+        Assert.Equal("time handling changed", engine.SnapshotReason(fresh with { TimeAdapterVersion = 0 }));
+        Assert.Equal("long interruption", engine.SnapshotReason(fresh with { CommittedThroughUtc = now.AddDays(-8) }));
+        Assert.Equal("weekly reconciliation", engine.SnapshotReason(fresh with { LastSnapshotUtc = now.AddDays(-4) }));
+    }
+
+    [Fact]
     public async Task Snapshot_reasons_follow_the_policy()
     {
         using var temp = new TempStore();
