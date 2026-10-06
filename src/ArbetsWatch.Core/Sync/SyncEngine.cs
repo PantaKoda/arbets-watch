@@ -46,6 +46,12 @@ public sealed record SyncOutcome(SyncKind Kind, DateTimeOffset CheckpointUtc, Ap
 public sealed record SnapshotProgress(int AdsReceived);
 
 /// <summary>
+/// Runs a commit with the filter in effect at that moment. The coordinator serializes commits with filter
+/// changes and read-state edits through this, without holding its lock across downloads or throttling waits.
+/// </summary>
+public delegate Task<ApplyResult> CommitScope(Func<AdFilter, Task<ApplyResult>> commit);
+
+/// <summary>
 /// Executes one synchronization step against the store: a full snapshot, or one bounded stream interval.
 /// Scheduling, coalescing and retries belong to the refresh coordinator (M4); this class assumes it is never
 /// called concurrently.
@@ -97,14 +103,17 @@ public sealed class SyncEngine(
     /// Downloads the snapshot into staging, replays changes that overlap the download, then activates the
     /// staged dataset and checkpoint atomically. Any failure leaves the active cache and checkpoint unchanged.
     /// </summary>
-    public async Task<SyncOutcome> LoadSnapshotAsync(AdFilter filter, IProgress<SnapshotProgress>? progress, CancellationToken cancellationToken)
+    public Task<SyncOutcome> LoadSnapshotAsync(AdFilter filter, IProgress<SnapshotProgress>? progress, CancellationToken cancellationToken) =>
+        LoadSnapshotAsync(commit => commit(filter), progress, cancellationToken);
+
+    public async Task<SyncOutcome> LoadSnapshotAsync(CommitScope commitScope, IProgress<SnapshotProgress>? progress, CancellationToken cancellationToken)
     {
         // A download that completed but whose replay request failed (e.g. throttled) is reused for a while
         // instead of fetching ~450 MB again.
         if (_completedStaging is { } completed && time.GetUtcNow() - completed.Start < StagingReuseWindow)
         {
             logger.LogInformation("Reusing the staged snapshot from {Start:o} ({Count} ads)", completed.Start, completed.Received);
-            return await ReplayAndActivateAsync(filter, completed.Start, completed.Received, cancellationToken).ConfigureAwait(false);
+            return await ReplayAndActivateAsync(commitScope, completed.Start, completed.Received, cancellationToken).ConfigureAwait(false);
         }
 
         _completedStaging = null;
@@ -149,10 +158,10 @@ public sealed class SyncEngine(
 
         logger.LogInformation("Snapshot received {Count} ads", received);
         _completedStaging = (start, received);
-        return await ReplayAndActivateAsync(filter, start, received, cancellationToken).ConfigureAwait(false);
+        return await ReplayAndActivateAsync(commitScope, start, received, cancellationToken).ConfigureAwait(false);
     }
 
-    private async Task<SyncOutcome> ReplayAndActivateAsync(AdFilter filter, DateTimeOffset start, int received, CancellationToken cancellationToken)
+    private async Task<SyncOutcome> ReplayAndActivateAsync(CommitScope commitScope, DateTimeOffset start, int received, CancellationToken cancellationToken)
     {
         // Changes made while the snapshot was downloading. The end is fixed before the request.
         await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -169,7 +178,7 @@ public sealed class SyncEngine(
         ApplyResult result;
         try
         {
-            result = await store.ActivateSnapshotAsync(filter, start, end, time.GetUtcNow(), cancellationToken).ConfigureAwait(false);
+            result = await commitScope(filter => store.ActivateSnapshotAsync(filter, start, end, time.GetUtcNow(), cancellationToken)).ConfigureAwait(false);
         }
         catch (SnapshotRejectedException)
         {
@@ -190,7 +199,10 @@ public sealed class SyncEngine(
     /// at most <see cref="SyncOptions.MaxInterval"/> after the checkpoint, and commits it with the checkpoint.
     /// Returns null when no interval is due yet.
     /// </summary>
-    public async Task<SyncOutcome?> PollIntervalAsync(AdFilter filter, CancellationToken cancellationToken)
+    public Task<SyncOutcome?> PollIntervalAsync(AdFilter filter, CancellationToken cancellationToken) =>
+        PollIntervalAsync(commit => commit(filter), cancellationToken);
+
+    public async Task<SyncOutcome?> PollIntervalAsync(CommitScope commitScope, CancellationToken cancellationToken)
     {
         var sync = await store.ReadSyncStateAsync(cancellationToken).ConfigureAwait(false);
         if (sync.CommittedThroughUtc is not { } committed)
@@ -208,7 +220,7 @@ public sealed class SyncEngine(
 
         var after = committed - options.Overlap;
         var changes = await FetchAsync(after, end, cancellationToken).ConfigureAwait(false);
-        var result = await store.CommitBatchAsync(changes, filter, end, time.GetUtcNow(), cancellationToken).ConfigureAwait(false);
+        var result = await commitScope(filter => store.CommitBatchAsync(changes, filter, end, time.GetUtcNow(), cancellationToken)).ConfigureAwait(false);
         logger.LogInformation("Interval {After:o} – {Before:o}: {Count} records, {Result}", after, end, changes.Count, result);
         return new SyncOutcome(SyncKind.Interval, end, result, changes.Count) { Behind = end < latest };
     }
