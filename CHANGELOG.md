@@ -1,5 +1,9 @@
 # Changelog
 
+## [Unreleased]
+
+- Fixed: a database created by a pre-release build could fail every refresh ("NOT NULL constraint failed: ad_state.first_seen_utc"). It is now migrated (schema 2) on start, keeping all saved ads and read state.
+
 ## [0.1.0] - 2026-10-06
 
 First version: a Windows tray app that keeps a local copy of the ads currently published on Platsbanken and shows them filtered by place and worktime.
