@@ -1,0 +1,80 @@
+name: CI
+
+# Pull requests and pushes to main are built and tested. Required checks: build-test-windows,
+# core-tests-linux, format. No job calls the live JobTech APIs.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# A newer push to the same pull request or branch cancels the run still in progress.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+
+jobs:
+  build-test-windows:
+    # Windows is the delivery target: full solution, all tests, and an inspectable publish folder.
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          global-json-file: global.json
+      - run: dotnet restore ArbetsWatch.slnx --locked-mode
+      - run: dotnet build ArbetsWatch.slnx --configuration Release --no-restore
+      - run: dotnet test ArbetsWatch.slnx --configuration Release --no-build --no-restore --logger trx --results-directory artifacts/test-results
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: test-results-windows
+          path: artifacts/test-results
+          if-no-files-found: warn
+      - name: Publish (inspection only, not a release)
+        run: dotnet publish src/ArbetsWatch.Desktop/ArbetsWatch.Desktop.csproj --configuration Release --runtime win-x64 --self-contained true -p:RestoreLockedMode=true --output artifacts/publish/win-x64
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: arbetswatch-win-x64
+          path: artifacts/publish/win-x64
+          if-no-files-found: error
+
+  core-tests-linux:
+    # Portability check for the shared Core; not a claim of Linux release readiness.
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          global-json-file: global.json
+      - run: dotnet restore tests/ArbetsWatch.Core.Tests/ArbetsWatch.Core.Tests.csproj --locked-mode
+      - run: dotnet build tests/ArbetsWatch.Core.Tests/ArbetsWatch.Core.Tests.csproj --configuration Release --no-restore
+      - run: dotnet test tests/ArbetsWatch.Core.Tests/ArbetsWatch.Core.Tests.csproj --configuration Release --no-build --no-restore --logger trx --results-directory artifacts/test-results
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: test-results-linux
+          path: artifacts/test-results
+          if-no-files-found: warn
+
+  format:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          global-json-file: global.json
+      - run: dotnet restore ArbetsWatch.slnx --locked-mode
+      - run: dotnet format ArbetsWatch.slnx --verify-no-changes --no-restore
