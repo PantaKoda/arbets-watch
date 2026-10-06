@@ -41,12 +41,16 @@ public sealed class AppShell : IShell, IDisposable
     private readonly DispatcherTimer _resumeWatch;
     private AppPreferences _preferences;
     private AppPreferences? _pendingSave;
-    private DateTimeOffset _lastTick = DateTimeOffset.UtcNow;
+    private readonly ResumeDetector _resume = new(TimeProvider.System, TimeSpan.FromMinutes(2));
     private IClassicDesktopStyleApplicationLifetime? _desktop;
     private Application? _application;
     private MainWindow? _window;
     private MainViewModel? _viewModel;
     private bool _quitting;
+    private string? _startupMessage;
+
+    /// <summary>Shown once in the window after it opens (e.g. the database had to be reset).</summary>
+    public void SetStartupMessage(string message) => _startupMessage = message;
 
     public AppShell(
         AppPaths paths,
@@ -95,7 +99,9 @@ public sealed class AppShell : IShell, IDisposable
         window.Opened += (_, _) => ApplyAppearance(_preferences);
         window.Closing += (_, e) =>
         {
-            if (!_quitting && _tray.IsAvailable)
+            // Only a close the user starts hides to the tray. Sign-out, shutdown and Quit close for real, so
+            // Windows is never blocked and Shutdown() runs.
+            if (!_quitting && _tray.IsAvailable && e.CloseReason == WindowCloseReason.WindowClosing && !e.IsProgrammatic)
             {
                 e.Cancel = true;
                 window.Hide();
@@ -142,6 +148,10 @@ public sealed class AppShell : IShell, IDisposable
         _resumeWatch.Start();
         _coordinator.Start();
         _ = viewModel.InitializeAsync();
+        if (_startupMessage is { } message)
+        {
+            viewModel.ShowMessage(message);
+        }
         _logger.LogInformation("Window shown; tray available: {Tray}", _tray.IsAvailable);
     }
 
@@ -277,7 +287,7 @@ public sealed class AppShell : IShell, IDisposable
         _window.Activate();
     }
 
-    private static void RestoreBounds(Window window, WindowBounds? bounds)
+    private void RestoreBounds(Window window, WindowBounds? bounds)
     {
         window.WindowStartupLocation = bounds is null ? WindowStartupLocation.CenterScreen : WindowStartupLocation.Manual;
         if (bounds is null)
@@ -292,7 +302,7 @@ public sealed class AppShell : IShell, IDisposable
     }
 
     /// <summary>Moves the window onto a working area if a monitor or DPI change left it unreachable.</summary>
-    private static void EnsureReachable(Window window)
+    private void EnsureReachable(Window window)
     {
         var screens = window.Screens.All;
         if (screens.Count == 0)
@@ -313,7 +323,9 @@ public sealed class AppShell : IShell, IDisposable
         var area = primary.WorkingArea;
         var width = Math.Min(box.Width, area.Width);
         var height = Math.Min(box.Height, area.Height);
-        window.Position = new PixelPoint(area.X + ((area.Width - width) / 2), area.Y + ((area.Height - height) / 2));
+        var centered = new PixelPoint(area.X + ((area.Width - width) / 2), area.Y + ((area.Height - height) / 2));
+        _logger.LogInformation("Window at {From} was unreachable; centered on the primary display at {To}", window.Position, centered);
+        window.Position = centered;
     }
 
     private void ScheduleBounds()
@@ -339,10 +351,7 @@ public sealed class AppShell : IShell, IDisposable
     /// </summary>
     private void DetectResume()
     {
-        var now = DateTimeOffset.UtcNow;
-        var gap = now - _lastTick;
-        _lastTick = now;
-        if (gap > TimeSpan.FromMinutes(2))
+        if (_resume.Tick() is { } gap)
         {
             _logger.LogInformation("Resumed after {Gap}; catching up", gap);
             _coordinator.RequestRefresh(RefreshReason.Resume);
@@ -381,10 +390,25 @@ public sealed class AppShell : IShell, IDisposable
         if (_viewModel is not null)
         {
             // Make sure the latest preferences (including window bounds) are written before exit.
-            PreferencesStore.SaveAsync(_store, _viewModel.Preferences).GetAwaiter().GetResult();
+            try
+            {
+                PreferencesStore.SaveAsync(_store, _viewModel.Preferences).GetAwaiter().GetResult();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Saving preferences on exit failed");
+            }
         }
 
-        _coordinator.DisposeAsync().AsTask().GetAwaiter().GetResult();
+        try
+        {
+            _coordinator.DisposeAsync().AsTask().GetAwaiter().GetResult();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Stopping monitoring failed");
+        }
+
         _logger.LogInformation("Stopped");
     }
 

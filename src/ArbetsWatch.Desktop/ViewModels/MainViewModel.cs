@@ -53,7 +53,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     private int _reloadVersion;
     private bool _syncingWorktime;
     private bool _syncingSettings;
-    private IReadOnlyList<AdRow>? _held;
+    private readonly EventHandler<SyncStatus> _onStatus;
+    private readonly EventHandler<ApplyResult> _onData;
 
     public MainViewModel(
         AdStore store,
@@ -86,8 +87,10 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         SyncSettings(preferences);
         PlacesSummary = PlaceSelection.Summary(preferences.Filter, catalog);
 
-        coordinator.StatusChanged += (_, status) => Dispatcher.UIThread.Post(() => OnStatus(status));
-        coordinator.DataChanged += (_, _) => Dispatcher.UIThread.Post(() => _ = ReloadAsync(ReloadReason.DataChanged));
+        _onStatus = (_, status) => Dispatcher.UIThread.Post(() => OnStatus(status));
+        _onData = (_, _) => Dispatcher.UIThread.Post(() => _ = ReloadAsync(ReloadReason.DataChanged));
+        coordinator.StatusChanged += _onStatus;
+        coordinator.DataChanged += _onData;
 
         if (updates is not null)
         {
@@ -259,7 +262,15 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     public Task InitializeAsync() => ReloadAsync(ReloadReason.Initial);
 
-    public void Dispose() => _clock.Stop();
+    public void Dispose()
+    {
+        _clock.Stop();
+        _coordinator.StatusChanged -= _onStatus;
+        _coordinator.DataChanged -= _onData;
+    }
+
+    /// <summary>A message shown once at the bottom of the window (e.g. after the database was reset).</summary>
+    public void ShowMessage(string message) => ShowNotice(message);
 
     // ---- Commands ---------------------------------------------------------------------------------------
 
@@ -275,28 +286,58 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             return;
         }
 
-        if (_browser.Open(url))
-        {
-            row.Unread = false;
-            await _store.MarkReadAsync(row.Id).ConfigureAwait(true);
-            UnreadCount = Rows.Count(r => r.Unread && !r.IsGone);
-        }
-        else
+        if (!_browser.Open(url))
         {
             ShowNotice("Could not open the browser.");
+            return;
+        }
+
+        if (!row.Unread)
+        {
+            return;
+        }
+
+        try
+        {
+            await _store.MarkReadAsync(row.Id).ConfigureAwait(true);
+            row.Unread = false;
+            UnreadCount = Rows.Count(r => r.Unread && !r.IsGone);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Saving read state failed");
+            ShowNotice("Could not save that the ad was read.");
         }
     }
 
+    /// <summary>
+    /// Clears the new markers of exactly the rows shown now: not ads held back behind the pill, committed by a
+    /// refresh in the meantime, or waiting in a reload that hasn't been applied.
+    /// </summary>
     [RelayCommand]
     private async Task MarkVisibleReadAsync()
     {
-        await _coordinator.MarkMatchingReadAsync().ConfigureAwait(true);
-        foreach (var row in Rows)
+        var shown = Rows.Where(r => r.Unread && !r.IsGone).ToList();
+        if (shown.Count == 0)
         {
-            row.Unread = false;
+            return;
         }
 
-        UnreadCount = 0;
+        try
+        {
+            await _store.MarkReadAsync([.. shown.Select(r => r.Id)]).ConfigureAwait(true);
+            foreach (var row in shown)
+            {
+                row.Unread = false;
+            }
+
+            UnreadCount = Rows.Count(r => r.Unread && !r.IsGone);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Saving read state failed");
+            ShowNotice("Could not save the read markers.");
+        }
     }
 
     [RelayCommand]
@@ -374,9 +415,19 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     private async Task ApplyFilterAsync(AdFilter filter)
     {
-        // Waits for a running batch, so unread decisions never mix two selections.
-        await _coordinator.SetFilterAsync(filter).ConfigureAwait(true);
-        await ReloadAsync(ReloadReason.FilterChanged).ConfigureAwait(true);
+        try
+        {
+            // The list reads committed data with the new filter right away; the coordinator takes the filter for
+            // its next commit (it waits at most for a commit in progress).
+            var reload = ReloadAsync(ReloadReason.FilterChanged);
+            await _coordinator.SetFilterAsync(filter).ConfigureAwait(true);
+            await reload.ConfigureAwait(true);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Applying the filter failed");
+            ShowNotice("Could not apply the filter.");
+        }
     }
 
     partial void OnFullTimeChanged(bool value) => OnWorktimeToggled();
@@ -528,7 +579,6 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     /// <summary>Replaces the list. Existing row objects are reused so state and selection carry over.</summary>
     private void ApplyRows(IReadOnlyList<AdRow> rows, DateTimeOffset now, bool flashNew)
     {
-        _held = null;
         HasHeldUpdates = false;
         var existing = Rows.ToDictionary(r => r.Id, StringComparer.Ordinal);
         var list = new List<AdRowViewModel>(rows.Count);
@@ -571,7 +621,6 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     /// </summary>
     private void HoldRows(IReadOnlyList<AdRow> rows, DateTimeOffset now)
     {
-        _held = rows;
         var incoming = rows.ToDictionary(r => r.Ad.Id, StringComparer.Ordinal);
         foreach (var vm in Rows)
         {

@@ -150,11 +150,71 @@ public sealed class AdStoreTests
         using var temp = new TempStore();
         await temp.BaselineAsync();
         await temp.Store.CommitBatchAsync([Fixtures.Ad("1", changed: T0.AddMinutes(1))], AdFilter.Default, T0.AddMinutes(2), T0.AddMinutes(2));
+        await temp.Store.MarkReadAsync("1");
         await temp.Store.CommitBatchAsync([Fixtures.Removal("1", T0.AddMinutes(3))], AdFilter.Default, T0.AddMinutes(4), T0.AddMinutes(4));
 
         await temp.Store.CommitBatchAsync([Fixtures.Ad("1", changed: T0.AddMinutes(5))], AdFilter.Default, T0.AddMinutes(6), T0.AddMinutes(6));
 
-        Assert.True((await temp.RowsAsync())["1"].Unread);
+        Assert.False((await temp.RowsAsync())["1"].Unread);
+    }
+
+    [Fact]
+    public async Task Id_first_seen_as_a_removal_becomes_unread_when_it_appears_as_an_ad()
+    {
+        using var temp = new TempStore();
+        await temp.BaselineAsync();
+        await temp.Store.CommitBatchAsync([Fixtures.Removal("9", T0.AddMinutes(1))], AdFilter.Default, T0.AddMinutes(2), T0.AddMinutes(2));
+
+        var result = await temp.Store.CommitBatchAsync([Fixtures.Ad("9", changed: T0.AddMinutes(3))], AdFilter.Default, T0.AddMinutes(4), T0.AddMinutes(4));
+
+        Assert.Equal(1, result.NewUnread);
+        Assert.True((await temp.RowsAsync())["9"].Unread);
+    }
+
+    [Fact]
+    public async Task Snapshot_is_authoritative_and_restores_a_republished_ad_with_an_older_timestamp()
+    {
+        using var temp = new TempStore();
+        await temp.BaselineAsync(Fixtures.Ad("1", changed: T0.AddMinutes(-10)));
+        await temp.Store.CommitBatchAsync([Fixtures.Removal("1", T0.AddMinutes(1))], AdFilter.Default, T0.AddMinutes(2), T0.AddMinutes(2));
+
+        // Re-published keeping its old timestamp, older than the stored removal.
+        await temp.Store.ResetStagingAsync();
+        await temp.Store.StageSnapshotChunkAsync([Fixtures.Ad("1", changed: T0.AddMinutes(-10))]);
+        await temp.Store.ActivateSnapshotAsync(AdFilter.Default, T0.AddMinutes(5), T0.AddMinutes(5), T0.AddMinutes(5));
+
+        Assert.Single(await temp.RowsAsync(now: T0.AddMinutes(5)));
+    }
+
+    [Fact]
+    public async Task Empty_or_much_smaller_snapshot_is_rejected_and_the_cache_kept()
+    {
+        using var temp = new TempStore();
+        await temp.BaselineAsync(Fixtures.Ad("1"), Fixtures.Ad("2"), Fixtures.Ad("3"), Fixtures.Ad("4"));
+        var before = await temp.Store.ReadSyncStateAsync();
+
+        await temp.Store.ResetStagingAsync();
+        await Assert.ThrowsAsync<SnapshotRejectedException>(() => temp.Store.ActivateSnapshotAsync(AdFilter.Default, T0.AddDays(8), T0.AddDays(8), T0.AddDays(8)));
+        await temp.Store.StageSnapshotChunkAsync([Fixtures.Ad("1")]);
+        await Assert.ThrowsAsync<SnapshotRejectedException>(() => temp.Store.ActivateSnapshotAsync(AdFilter.Default, T0.AddDays(8), T0.AddDays(8), T0.AddDays(8)));
+
+        Assert.Equal(4, (await temp.RowsAsync()).Count);
+        Assert.Equal(before, await temp.Store.ReadSyncStateAsync());
+    }
+
+    [Fact]
+    public async Task Reconciliation_never_marks_an_expired_ad_unread()
+    {
+        using var temp = new TempStore();
+        await temp.BaselineAsync(Fixtures.Ad("1"));
+        var now = T0.AddDays(8);
+
+        await temp.Store.ResetStagingAsync();
+        await temp.Store.StageSnapshotChunkAsync([Fixtures.Ad("1"), Fixtures.Ad("expired", lastPublication: now.AddMinutes(-1)), Fixtures.Ad("new")]);
+        var result = await temp.Store.ActivateSnapshotAsync(AdFilter.Default, now, now, now);
+
+        Assert.Equal(1, result.NewUnread);
+        Assert.True((await temp.RowsAsync(now: now))["new"].Unread);
     }
 
     [Fact]
@@ -211,6 +271,59 @@ public sealed class AdStoreTests
         var all = await temp.RowsAsync();
         Assert.False(all["gbg"].Unread);
         Assert.True(all["mmo"].Unread);
+    }
+
+    [Fact]
+    public async Task Mark_read_by_ids_leaves_ads_committed_later_unread()
+    {
+        using var temp = new TempStore();
+        await temp.BaselineAsync();
+        await temp.Store.CommitBatchAsync([Fixtures.Ad("seen", changed: T0.AddMinutes(1))], AdFilter.Default, T0.AddMinutes(2), T0.AddMinutes(2));
+        var shown = (await temp.RowsAsync()).Values.Where(r => r.Unread).Select(r => r.Ad.Id).ToList();
+
+        // A refresh commits another new ad before the click is processed.
+        await temp.Store.CommitBatchAsync([Fixtures.Ad("later", changed: T0.AddMinutes(3))], AdFilter.Default, T0.AddMinutes(4), T0.AddMinutes(4));
+        Assert.Equal(1, await temp.Store.MarkReadAsync(shown));
+
+        var rows = await temp.RowsAsync();
+        Assert.False(rows["seen"].Unread);
+        Assert.True(rows["later"].Unread);
+    }
+
+    [Fact]
+    public async Task Unreadable_database_is_moved_aside_and_never_paired_with_its_old_sidecars()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "arbetswatch-tests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        var path = Path.Combine(directory, "arbetswatch.db");
+        File.WriteAllText(path, "this is not a database, it is plain text that is long enough to have a header....");
+        File.WriteAllText(path + "-wal", "stale");
+        File.WriteAllText(path + "-shm", "stale");
+
+        var opened = StoreOpener.Open(path);
+        using (opened.Store)
+        {
+            Assert.NotNull(opened.QuarantinedTo);
+            Assert.Equal("this is not a database", File.ReadAllText(opened.QuarantinedTo)[..22]);
+
+            // The new database is never paired with the old sidecars (SQLite may already have discarded them).
+            foreach (var suffix in new[] { "-wal", "-shm" })
+            {
+                Assert.False(File.Exists(path + suffix) && ReadShared(path + suffix) == "stale");
+            }
+
+            Assert.Empty(await opened.Store.QueryAsync(AdFilter.Default, T0));
+        }
+
+        SqliteConnection.ClearAllPools();
+        Directory.Delete(directory, recursive: true);
+    }
+
+    private static string ReadShared(string path)
+    {
+        using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+        using var reader = new StreamReader(stream);
+        return reader.ReadToEnd();
     }
 
     [Fact]

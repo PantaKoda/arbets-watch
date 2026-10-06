@@ -56,9 +56,11 @@ public sealed record SyncStatus
 }
 
 /// <summary>
-/// The single owner of synchronization. Timer ticks, manual refresh, resume and filter changes all go through
-/// one loop, so at most one request or mutation runs at a time. Requests that arrive while a refresh runs are
-/// absorbed by it. Failures keep the last data visible and are retried with backoff and jitter.
+/// The single owner of synchronization. Timer ticks, manual refresh, resume and retries go through one loop, so
+/// at most one refresh runs at a time; requests that arrive while it runs are absorbed by it. Commits, filter
+/// changes and read-state edits are serialized by a lock held only for the commit itself, never across
+/// downloads or throttling waits. Failures keep the last data visible and are retried with backoff and jitter;
+/// no exception ends the loop.
 /// </summary>
 public sealed class RefreshCoordinator : IAsyncDisposable
 {
@@ -160,8 +162,8 @@ public sealed class RefreshCoordinator : IAsyncDisposable
     }
 
     /// <summary>
-    /// Changes the filter used to decide unread markers. Waits for any running mutation, so a batch is never
-    /// judged half against the old and half against the new selection.
+    /// Changes the filter used to decide unread markers. Waits only for a commit in progress (milliseconds), so
+    /// a batch is never judged half against the old and half against the new selection.
     /// </summary>
     public async Task SetFilterAsync(AdFilter filter, CancellationToken cancellationToken = default)
     {
@@ -240,6 +242,10 @@ public sealed class RefreshCoordinator : IAsyncDisposable
             {
                 // Expected on shutdown.
             }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "The refresh loop ended with an error");
+            }
         }
 
         _stopping.Dispose();
@@ -247,6 +253,54 @@ public sealed class RefreshCoordinator : IAsyncDisposable
     }
 
     private async Task RunLoopAsync(CancellationToken stopping)
+    {
+        // Reading the saved state can fail (database busy or unreadable): report it and try again.
+        while (true)
+        {
+            try
+            {
+                await InitializeScheduleAsync(stopping).ConfigureAwait(false);
+                break;
+            }
+            catch (OperationCanceledException) when (stopping.IsCancellationRequested)
+            {
+                return;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Reading the saved state failed; retrying");
+                Publish(s => s with { Phase = SyncPhase.Failed, Message = "Could not read the saved data. Retrying." });
+                try
+                {
+                    await Task.Delay(TimeSpan.FromSeconds(30), _time, stopping).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException)
+                {
+                    return;
+                }
+            }
+        }
+
+        while (!stopping.IsCancellationRequested)
+        {
+            try
+            {
+                await RunIterationAsync(stopping).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (stopping.IsCancellationRequested)
+            {
+                return;
+            }
+            catch (Exception ex)
+            {
+                // Never let an unexpected error end monitoring: report it and fall back to the backoff schedule.
+                _logger.LogError(ex, "Unexpected error in the refresh loop");
+                HandleFailure(ex);
+            }
+        }
+    }
+
+    private async Task InitializeScheduleAsync(CancellationToken stopping)
     {
         var sync = await _store.ReadSyncStateAsync(stopping).ConfigureAwait(false);
         Publish(s => s with
@@ -268,8 +322,10 @@ public sealed class RefreshCoordinator : IAsyncDisposable
                 }
             }
         }
+    }
 
-        while (!stopping.IsCancellationRequested)
+    private async Task RunIterationAsync(CancellationToken stopping)
+    {
         {
             RefreshReason? reason;
             TaskCompletionSource wake;
@@ -299,19 +355,23 @@ public sealed class RefreshCoordinator : IAsyncDisposable
 
             if (reason is null)
             {
-                Publish(s => s with { NextRunUtc = wait == Timeout.InfiniteTimeSpan ? null : _nextDue });
                 await WaitAsync(wake.Task, wait!.Value, stopping).ConfigureAwait(false);
-                continue;
+                return;
             }
 
             await RunCycleAsync(reason.Value, stopping).ConfigureAwait(false);
         }
     }
 
+    /// <summary>
+    /// Waits for a wake-up or the next due time. The delay timer exists before the next run time is published,
+    /// so anyone reacting to the published time (UI, tests with a fake clock) can never move time past it unseen.
+    /// </summary>
     private async Task WaitAsync(Task wake, TimeSpan wait, CancellationToken stopping)
     {
         if (wait == Timeout.InfiniteTimeSpan)
         {
+            Publish(s => s with { NextRunUtc = null });
             await wake.WaitAsync(stopping).ConfigureAwait(false);
             return;
         }
@@ -323,6 +383,7 @@ public sealed class RefreshCoordinator : IAsyncDisposable
 
         using var delayCancel = CancellationTokenSource.CreateLinkedTokenSource(stopping);
         var delay = Task.Delay(wait, _time, delayCancel.Token);
+        Publish(s => s with { NextRunUtc = _nextDue });
         await Task.WhenAny(wake, delay).ConfigureAwait(false);
         await delayCancel.CancelAsync().ConfigureAwait(false);
         stopping.ThrowIfCancellationRequested();
@@ -330,38 +391,38 @@ public sealed class RefreshCoordinator : IAsyncDisposable
 
     private async Task RunCycleAsync(RefreshReason reason, CancellationToken stopping)
     {
+        // Foreground (the progress line) only for a refresh the user asked for or the first load; weekly
+        // reconciliation and catch-up run quietly.
         var foreground = reason == RefreshReason.Manual || !Status.HasBaseline;
-        await _mutation.WaitAsync(stopping).ConfigureAwait(false);
         try
         {
-            AdFilter filter;
-            lock (_lock)
-            {
-                filter = _filter;
-            }
-
             // Bounded catch-up: each step is one gated request; a long gap becomes a snapshot instead.
             const int maxSteps = 16;
             for (var step = 0; step < maxSteps; step++)
             {
+                if (step > 0 && reason != RefreshReason.Manual && IsPaused)
+                {
+                    break; // each step's checkpoint is committed, so stopping between steps is safe
+                }
+
                 var sync = await _store.ReadSyncStateAsync(stopping).ConfigureAwait(false);
                 SyncOutcome? outcome;
                 if (_engine.SnapshotReason(sync) is { } why)
                 {
                     _logger.LogInformation("Loading snapshot ({Reason}, trigger {Trigger})", why, reason);
-                    Publish(s => s with { Phase = SyncPhase.LoadingSnapshot, Foreground = true, Message = null, SnapshotAdsReceived = 0 });
+                    Publish(s => s with { Phase = SyncPhase.LoadingSnapshot, Foreground = foreground, Message = null, SnapshotAdsReceived = 0 });
                     var progress = new InlineProgress<SnapshotProgress>(p => Publish(s => s with { SnapshotAdsReceived = p.AdsReceived }));
-                    outcome = await _engine.LoadSnapshotAsync(filter, progress, stopping).ConfigureAwait(false);
+                    outcome = await _engine.LoadSnapshotAsync(CommitUnderLockAsync, progress, stopping).ConfigureAwait(false);
                 }
                 else
                 {
                     Publish(s => s with { Phase = SyncPhase.Updating, Foreground = foreground, Message = null });
-                    outcome = await _engine.PollIntervalAsync(filter, stopping).ConfigureAwait(false);
+                    outcome = await _engine.PollIntervalAsync(CommitUnderLockAsync, stopping).ConfigureAwait(false);
                 }
 
                 if (outcome is not null)
                 {
-                    DataChanged?.Invoke(this, outcome.Result);
+                    Raise(DataChanged, outcome.Result);
                 }
 
                 if (outcome is not { Behind: true })
@@ -398,7 +459,6 @@ public sealed class RefreshCoordinator : IAsyncDisposable
         }
         finally
         {
-            _mutation.Release();
             lock (_lock)
             {
                 // Requests made while this cycle ran are absorbed by it; after a failure the backoff schedule
@@ -408,10 +468,35 @@ public sealed class RefreshCoordinator : IAsyncDisposable
         }
     }
 
+    private bool IsPaused
+    {
+        get
+        {
+            lock (_lock)
+            {
+                return _paused;
+            }
+        }
+    }
+
+    /// <summary>Serializes one commit with filter changes and read-state edits, using the filter in effect now.</summary>
+    private async Task<ApplyResult> CommitUnderLockAsync(Func<AdFilter, Task<ApplyResult>> commit)
+    {
+        await _mutation.WaitAsync(_stopping.Token).ConfigureAwait(false);
+        try
+        {
+            return await commit(Filter).ConfigureAwait(false);
+        }
+        finally
+        {
+            _mutation.Release();
+        }
+    }
+
     private void HandleFailure(Exception ex)
     {
         var kind = ex is JobStreamException j ? j.Kind : FailureKind.Transient;
-        var offline = ex is JobStreamException { InnerException: HttpRequestException } || ex.InnerException is HttpRequestException;
+        var offline = ex is JobStreamException { IsConnectivity: true };
         TimeSpan delay;
         lock (_lock)
         {
@@ -423,15 +508,23 @@ public sealed class RefreshCoordinator : IAsyncDisposable
             }
             else
             {
-                // 30 s, 1, 2, 4 … minutes, capped at the poll interval, ±25 % jitter; the request gate still applies.
+                // 30 s, 1, 2, 4 … minutes, capped at the poll interval, ±25 % jitter.
                 var exponential = TimeSpan.FromSeconds(30 * Math.Pow(2, Math.Min(_failures - 1, 10)));
                 var capped = exponential < _pollInterval ? exponential : _pollInterval;
-                if (ex is JobStreamException { RetryAfter: { } retryAfter } && retryAfter > capped)
+                delay = capped * (0.75 + (_random.NextDouble() * 0.5));
+
+                // Data that will fail the same way again, or a snapshot that looked incomplete: retry rarely.
+                if (kind == FailureKind.InvalidData || ex is SnapshotRejectedException)
                 {
-                    capped = retryAfter;
+                    delay = Max(delay, Max(_pollInterval, TimeSpan.FromMinutes(30)));
                 }
 
-                delay = capped * (0.75 + (_random.NextDouble() * 0.5));
+                // Never before the service's Retry-After (jitter is applied first, then clamped).
+                if (ex is JobStreamException { RetryAfter: { } retryAfter })
+                {
+                    delay = Max(delay, retryAfter);
+                }
+
                 _nextDue = _time.GetUtcNow() + delay;
             }
         }
@@ -448,9 +541,13 @@ public sealed class RefreshCoordinator : IAsyncDisposable
         });
     }
 
+    private static TimeSpan Max(TimeSpan a, TimeSpan b) => a > b ? a : b;
+
     private static string Describe(Exception ex, FailureKind kind, bool offline) => kind switch
     {
         _ when offline => "No connection to Arbetsförmedlingen. Showing saved ads.",
+        _ when ex is SnapshotRejectedException => "The downloaded list looked incomplete, so the saved ads were kept. Trying again later.",
+        FailureKind.InvalidData => "Received data ArbetsWatch could not read. Showing saved ads; trying again later.",
         FailureKind.RateLimited => "The service asked to slow down. Retrying later.",
         FailureKind.Permanent => $"The service rejected the request ({(ex as JobStreamException)?.StatusCode}). Refresh to try again.",
         _ => "Could not update. Showing saved ads; retrying.",
@@ -470,7 +567,28 @@ public sealed class RefreshCoordinator : IAsyncDisposable
             _status = next;
         }
 
-        StatusChanged?.Invoke(this, next);
+        Raise(StatusChanged, next);
+    }
+
+    /// <summary>Raises an event; a failing subscriber is logged and never stops monitoring.</summary>
+    private void Raise<T>(EventHandler<T>? handler, T value)
+    {
+        if (handler is null)
+        {
+            return;
+        }
+
+        foreach (var subscriber in handler.GetInvocationList().Cast<EventHandler<T>>())
+        {
+            try
+            {
+                subscriber(this, value);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "A {Event} subscriber failed", typeof(T).Name);
+            }
+        }
     }
 
     private void Wake()

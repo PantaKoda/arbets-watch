@@ -44,7 +44,7 @@ internal static class Schema
         -- older replays are rejected and read state survives a return; pruned after the retention period.
         CREATE TABLE ad_state (
             id TEXT NOT NULL PRIMARY KEY,
-            first_seen_utc INTEGER NOT NULL,
+            first_seen_utc INTEGER,              -- first sighting as an ad; null while known only from a removal
             unread INTEGER NOT NULL DEFAULT 0,
             changed_utc INTEGER NOT NULL,
             changed_kind TEXT NOT NULL,          -- 'ad' (millisecond timestamp) or 'removal' (whole seconds)

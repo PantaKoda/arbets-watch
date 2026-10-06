@@ -12,13 +12,17 @@ public static class AdRecordParser
 {
     /// <summary>Parses one line. Throws <see cref="AdParseException"/> for malformed records.</summary>
     /// <param name="line">One JSON object.</param>
-    /// <param name="removalFallbackUtc">Used as the removal time when a removal has no <c>removed_date</c>.</param>
-    public static SourceRecord Parse(string line, DateTimeOffset removalFallbackUtc)
+    /// <param name="unorderedFallbackUtc">
+    /// The change instant for a record whose own one is missing or unreadable: the end of the requested interval
+    /// (or the snapshot start). The record then counts as the newest state and is applied rather than rejected
+    /// on invented ordering data (docs/api-contracts.md, "Ordering of states").
+    /// </param>
+    public static SourceRecord Parse(string line, DateTimeOffset unorderedFallbackUtc)
     {
         try
         {
             using var document = JsonDocument.Parse(line);
-            return Parse(document.RootElement, removalFallbackUtc);
+            return Parse(document.RootElement, unorderedFallbackUtc);
         }
         catch (JsonException ex)
         {
@@ -26,7 +30,7 @@ public static class AdRecordParser
         }
     }
 
-    public static SourceRecord Parse(JsonElement ad, DateTimeOffset removalFallbackUtc)
+    public static SourceRecord Parse(JsonElement ad, DateTimeOffset unorderedFallbackUtc)
     {
         if (ad.ValueKind != JsonValueKind.Object)
         {
@@ -36,12 +40,12 @@ public static class AdRecordParser
         var id = Id(ad);
         if (ad.TryGetProperty("removed", out var removed) && removed.ValueKind == JsonValueKind.True)
         {
+            // The raw text is kept even when it can't be read, for diagnostics.
             var raw = Str(ad, "removed_date");
-            var removedUtc = SwedishTime.ParseLocal(raw);
             return new AdRemoval(
                 id,
-                removedUtc ?? removalFallbackUtc,
-                removedUtc is null ? null : raw,
+                SwedishTime.ParseLocal(raw, laterInRepeatedHour: true) ?? unorderedFallbackUtc,
+                raw,
                 Str(ad, "country"),
                 Str(ad, "region"),
                 Str(ad, "municipality"));
@@ -51,7 +55,6 @@ public static class AdRecordParser
         var worktime = Obj(ad, "working_hours_type");
         var published = Str(ad, "publication_date");
         var lastPublication = Str(ad, "last_publication_date");
-        var publishedUtc = SwedishTime.ParseLocal(published);
 
         return new AdSummary(
             id,
@@ -65,12 +68,12 @@ public static class AdRecordParser
             MunicipalityLabel: Str(address, "municipality"),
             WorktimeId: Str(worktime, "concept_id"),
             WorktimeLabel: Str(worktime, "label"),
-            PublishedUtc: publishedUtc,
+            PublishedUtc: SwedishTime.ParseLocal(published),
             PublishedRaw: published,
             LastPublicationUtc: SwedishTime.ParseLocal(lastPublication),
             LastPublicationRaw: lastPublication,
-            // timestamp is epoch milliseconds (UTC). If it is ever missing, publication is the best ordering hint.
-            ChangedUtc: Timestamp(ad) ?? publishedUtc ?? DateTimeOffset.UnixEpoch);
+            // timestamp is epoch milliseconds (UTC). Without it the order is unknown, so the state is applied.
+            ChangedUtc: Timestamp(ad) ?? unorderedFallbackUtc);
     }
 
     private static string Id(JsonElement ad)

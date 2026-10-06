@@ -38,15 +38,29 @@ public sealed class AdStore : IDisposable
         }.ToString();
 
         var store = new AdStore(connectionString, policy ?? new StorePolicy());
-        using var connection = store.Connect();
+        try
+        {
+            store.Initialize();
+        }
+        catch
+        {
+            store.Dispose();
+            throw;
+        }
+
+        return store;
+    }
+
+    private void Initialize()
+    {
+        using var connection = Connect();
         using (var pragma = connection.CreateCommand())
         {
-            pragma.CommandText = "PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL;";
+            pragma.CommandText = "PRAGMA journal_mode = WAL;";
             pragma.ExecuteNonQuery();
         }
 
         Schema.Migrate(connection);
-        return store;
     }
 
     // ---- Sync state -------------------------------------------------------------------------------------
@@ -142,7 +156,8 @@ public sealed class AdStore : IDisposable
     /// <summary>
     /// Makes the staged snapshot the active dataset and sets the checkpoint, in one transaction. Read state is
     /// kept for known IDs. On the first-ever activation no ad becomes unread (baseline); afterwards, IDs never
-    /// seen before become unread when they match <paramref name="filter"/>.
+    /// seen as an ad before become unread when they match <paramref name="filter"/>. Throws
+    /// <see cref="SnapshotRejectedException"/> (nothing changes) when staging is implausibly small.
     /// </summary>
     /// <param name="snapshotStart">Captured before the snapshot request; live rows newer than it are kept.</param>
     public Task<ApplyResult> ActivateSnapshotAsync(
@@ -157,8 +172,19 @@ public sealed class AdStore : IDisposable
             var nowMs = Ms(now);
             var counters = new Counters();
 
-            // Current ads missing from the snapshot are gone, unless the cache holds a state newer than the
-            // snapshot could reflect.
+            // An empty or much smaller snapshot than the cache is far more likely a truncated download than half
+            // of Platsbanken vanishing; keep the previous cache (AGENTS.md section 7).
+            var staged = Count(connection, transaction, "SELECT COUNT(*) FROM snapshot_staging WHERE removed = 0");
+            var current = Count(connection, transaction,
+                "SELECT COUNT(*) FROM ad_summary WHERE last_publication_utc IS NULL OR last_publication_utc >= $now", ("$now", nowMs));
+            if (current > 0 && staged < current * _policy.MinSnapshotFraction)
+            {
+                throw new SnapshotRejectedException(staged, current);
+            }
+
+            // The snapshot is authoritative for membership (docs/api-contracts.md, "Ordering of states"): staged
+            // rows apply whatever the stored state says. Current ads missing from it are gone, unless the cache
+            // holds a state newer than the snapshot could reflect.
             counters.Absent = Execute(connection, transaction, """
                 UPDATE ad_state SET inactive_since_utc = $now, inactive_reason = 'absent'
                 WHERE inactive_since_utc IS NULL
@@ -167,7 +193,7 @@ public sealed class AdStore : IDisposable
                                AND a.changed_utc < $start)
                 """, ("$now", nowMs), ("$start", Ms(snapshotStart)));
 
-            // Replayed removals that are not older than the stored state.
+            // Staged removals (replayed over the download period).
             counters.Removed = Execute(connection, transaction, """
                 UPDATE ad_state
                 SET changed_utc = s.changed_utc, changed_kind = 'removal',
@@ -175,33 +201,44 @@ public sealed class AdStore : IDisposable
                     inactive_reason = COALESCE(ad_state.inactive_reason, 'removed')
                 FROM snapshot_staging s
                 WHERE s.id = ad_state.id AND s.removed = 1
-                  AND s.changed_utc / 1000 >= ad_state.changed_utc / 1000
                 """, ("$now", nowMs));
             Execute(connection, transaction, """
                 INSERT INTO ad_state (id, first_seen_utc, unread, changed_utc, changed_kind, inactive_since_utc, inactive_reason)
-                SELECT s.id, $now, 0, s.changed_utc, 'removal', $now, 'removed'
+                SELECT s.id, NULL, 0, s.changed_utc, 'removal', $now, 'removed'
                 FROM snapshot_staging s
                 WHERE s.removed = 1 AND NOT EXISTS (SELECT 1 FROM ad_state st WHERE st.id = s.id)
                 """, ("$now", nowMs));
 
-            // Known IDs whose staged state is not older: current again, read state kept.
+            // Staged ads: current, read state kept.
             Execute(connection, transaction, """
                 UPDATE ad_state
                 SET changed_utc = s.changed_utc, changed_kind = 'ad', inactive_since_utc = NULL, inactive_reason = NULL
                 FROM snapshot_staging s
                 WHERE s.id = ad_state.id AND s.removed = 0
-                  AND NOT ((ad_state.changed_kind = 'ad' AND s.changed_utc < ad_state.changed_utc)
-                        OR (ad_state.changed_kind <> 'ad' AND s.changed_utc / 1000 < ad_state.changed_utc / 1000))
                 """);
 
-            // IDs never seen before.
+            // First sighting as an ad: IDs never seen, or seen only as removals. Unread after the baseline when they
+            // match and are not already expired (the same rule as ApplyRecords).
+            using (var firstAd = connection.CreateCommand())
+            {
+                firstAd.Transaction = transaction;
+                firstAd.CommandText = $"""
+                    UPDATE ad_state
+                    SET first_seen_utc = $now, unread = {UnreadCase(filter, firstAd)}
+                    FROM snapshot_staging s
+                    WHERE s.id = ad_state.id AND s.removed = 0 AND ad_state.first_seen_utc IS NULL
+                    """;
+                firstAd.Parameters.AddWithValue("$now", nowMs);
+                firstAd.Parameters.AddWithValue("$unreadAllowed", sync.BaselineEstablished ? 1 : 0);
+                firstAd.ExecuteNonQuery();
+            }
+
             using (var insert = connection.CreateCommand())
             {
                 insert.Transaction = transaction;
-                var matches = AdFilterSql.Where(filter, insert, "s");
                 insert.CommandText = $"""
                     INSERT INTO ad_state (id, first_seen_utc, unread, changed_utc, changed_kind)
-                    SELECT s.id, $now, CASE WHEN $unreadAllowed = 1 AND ({matches}) THEN 1 ELSE 0 END, s.changed_utc, 'ad'
+                    SELECT s.id, $now, {UnreadCase(filter, insert)}, s.changed_utc, 'ad'
                     FROM snapshot_staging s
                     WHERE s.removed = 0 AND NOT EXISTS (SELECT 1 FROM ad_state st WHERE st.id = s.id)
                     """;
@@ -210,13 +247,11 @@ public sealed class AdStore : IDisposable
                 insert.ExecuteNonQuery();
             }
 
-            // Copy staged ads whose state was just applied (state now carries exactly their change instant).
             counters.Applied = Execute(connection, transaction, $"""
                 INSERT INTO ad_summary ({SummaryColumnList})
                 SELECT {Prefixed("s")}
-                FROM snapshot_staging s JOIN ad_state st ON st.id = s.id
-                WHERE s.removed = 0 AND st.changed_kind = 'ad' AND st.changed_utc = s.changed_utc
-                  AND st.inactive_since_utc IS NULL
+                FROM snapshot_staging s
+                WHERE s.removed = 0
                 ON CONFLICT (id) DO UPDATE SET {UpdateAssignments()}
                 """);
 
@@ -263,7 +298,7 @@ public sealed class AdStore : IDisposable
             while (reader.Read())
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                rows.Add(new AdRow(ReadSummary(reader), reader.GetInt64(16) == 1, FromMs(reader.GetInt64(17))));
+                rows.Add(new AdRow(ReadSummary(reader), reader.GetInt64(16) == 1, reader.IsDBNull(17) ? now : FromMs(reader.GetInt64(17))));
             }
 
             return rows;
@@ -284,6 +319,24 @@ public sealed class AdStore : IDisposable
         WriteAsync((connection, transaction) =>
             Execute(connection, transaction, "UPDATE ad_state SET unread = 0 WHERE id = $id", ("$id", id)),
             cancellationToken);
+
+    /// <summary>
+    /// Clears unread for exactly these IDs, in one transaction: the rows the user saw. Ads committed after the list
+    /// was captured keep their marker.
+    /// </summary>
+    public Task<int> MarkReadAsync(IReadOnlyCollection<string> ids, CancellationToken cancellationToken = default) =>
+        WriteAsync((connection, transaction) =>
+        {
+            using var command = Command(connection, transaction, "UPDATE ad_state SET unread = 0 WHERE id = $id AND unread = 1", "$id");
+            var changed = 0;
+            foreach (var id in ids)
+            {
+                command.Parameters["$id"].Value = id;
+                changed += command.ExecuteNonQuery();
+            }
+
+            return changed;
+        }, cancellationToken);
 
     /// <summary>Clears unread for the ads currently matching <paramref name="filter"/> only.</summary>
     public Task<int> MarkMatchingReadAsync(AdFilter filter, DateTimeOffset now, CancellationToken cancellationToken = default) =>
@@ -329,9 +382,31 @@ public sealed class AdStore : IDisposable
     private SqliteConnection Connect()
     {
         var connection = new SqliteConnection(_connectionString);
-        connection.Open();
-        return connection;
+        try
+        {
+            connection.Open();
+
+            // Per connection (unlike journal_mode, which is stored in the file): safe with WAL, fewer fsyncs.
+            using var pragma = connection.CreateCommand();
+            pragma.CommandText = "PRAGMA synchronous = NORMAL;";
+            pragma.ExecuteNonQuery();
+            return connection;
+        }
+        catch
+        {
+            // Never leak an open handle (an unreadable file must stay movable).
+            connection.Dispose();
+            throw;
+        }
     }
+
+    /// <summary>The unread decision for a staged row aliased <c>s</c>, as SQL (needs <c>$now</c> and <c>$unreadAllowed</c>).</summary>
+    private static string UnreadCase(AdFilter filter, SqliteCommand command) =>
+        $"CASE WHEN $unreadAllowed = 1 AND {AdFilterSql.Where(filter, command, "s")} " +
+        "AND (s.last_publication_utc IS NULL OR s.last_publication_utc >= $now) THEN 1 ELSE 0 END";
+
+    private static long Count(SqliteConnection connection, SqliteTransaction transaction, string sql, params (string Name, object? Value)[] parameters) =>
+        Convert.ToInt64(Scalar(connection, transaction, sql, parameters), System.Globalization.CultureInfo.InvariantCulture);
 
     private async Task<T> WriteAsync<T>(Func<SqliteConnection, SqliteTransaction, T> work, CancellationToken cancellationToken)
     {
@@ -365,7 +440,7 @@ public sealed class AdStore : IDisposable
         CancellationToken cancellationToken)
     {
         using var readState = Command(connection, transaction,
-            "SELECT changed_utc, changed_kind FROM ad_state WHERE id = $id", "$id");
+            "SELECT changed_utc, changed_kind, first_seen_utc FROM ad_state WHERE id = $id", "$id");
         using var upsertSummary = Command(connection, transaction, $"""
             INSERT INTO ad_summary ({SummaryColumnList}) VALUES ({ParameterList()})
             ON CONFLICT (id) DO UPDATE SET {UpdateAssignments()}
@@ -375,6 +450,8 @@ public sealed class AdStore : IDisposable
             INSERT INTO ad_state (id, first_seen_utc, unread, changed_utc, changed_kind, inactive_since_utc, inactive_reason)
             VALUES ($id, $now, $unread, $changed, $kind, $inactive, $reason)
             """, "$id", "$now", "$unread", "$changed", "$kind", "$inactive", "$reason");
+        using var firstAd = Command(connection, transaction,
+            "UPDATE ad_state SET first_seen_utc = $now, unread = $unread WHERE id = $id", "$id", "$now", "$unread");
         using var markActive = Command(connection, transaction, """
             UPDATE ad_state SET changed_utc = $changed, changed_kind = 'ad', inactive_since_utc = NULL, inactive_reason = NULL
             WHERE id = $id
@@ -395,12 +472,14 @@ public sealed class AdStore : IDisposable
             readState.Parameters["$id"].Value = record.Id;
             long? storedMs = null;
             string? storedKind = null;
+            var seenAsAd = false;
             using (var reader = readState.ExecuteReader())
             {
                 if (reader.Read())
                 {
                     storedMs = reader.GetInt64(0);
                     storedKind = reader.GetString(1);
+                    seenAsAd = !reader.IsDBNull(2);
                 }
             }
 
@@ -415,21 +494,29 @@ public sealed class AdStore : IDisposable
                 case AdSummary ad:
                     BindSummary(upsertSummary, ad);
                     upsertSummary.ExecuteNonQuery();
+
+                    // "New" is decided on the first sighting as an ad; an earlier removal-only row doesn't count.
+                    var unread = !seenAsAd && unreadAllowed && AdMatcher.Matches(filter, ad) && !ad.IsExpiredAt(FromMs(nowMs));
                     if (storedMs is null)
                     {
-                        var unread = unreadAllowed && AdMatcher.Matches(filter, ad) && !ad.IsExpiredAt(FromMs(nowMs));
                         Bind(insertState, ("$id", ad.Id), ("$now", nowMs), ("$unread", unread ? 1 : 0),
                             ("$changed", incomingMs), ("$kind", SourceOrder.AdKind), ("$inactive", null), ("$reason", null));
                         insertState.ExecuteNonQuery();
-                        if (unread)
-                        {
-                            counters.NewUnread++;
-                        }
                     }
                     else
                     {
                         Bind(markActive, ("$id", ad.Id), ("$changed", incomingMs));
                         markActive.ExecuteNonQuery();
+                        if (!seenAsAd)
+                        {
+                            Bind(firstAd, ("$id", ad.Id), ("$now", nowMs), ("$unread", unread ? 1 : 0));
+                            firstAd.ExecuteNonQuery();
+                        }
+                    }
+
+                    if (unread)
+                    {
+                        counters.NewUnread++;
                     }
 
                     counters.Applied++;
@@ -440,7 +527,8 @@ public sealed class AdStore : IDisposable
                     var deleted = deleteSummary.ExecuteNonQuery();
                     if (storedMs is null)
                     {
-                        Bind(insertState, ("$id", removal.Id), ("$now", nowMs), ("$unread", 0), ("$changed", incomingMs),
+                        // Known only as a removal: no first sighting as an ad yet (first_seen_utc stays null).
+                        Bind(insertState, ("$id", removal.Id), ("$now", null), ("$unread", 0), ("$changed", incomingMs),
                             ("$kind", SourceOrder.RemovalKind), ("$inactive", nowMs), ("$reason", "removed"));
                         insertState.ExecuteNonQuery();
                     }

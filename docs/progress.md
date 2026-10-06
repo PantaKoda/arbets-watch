@@ -10,7 +10,7 @@ Status of the milestones in `AGENTS.md`, with the validation that was actually r
 | M3 — Bootstrap | Done |
 | M4 — Monitoring | Done |
 | M5 — Usable UI | Done |
-| M6 — Desktop release | Done (see limitations) |
+| M6 — Desktop release | In progress: real sleep/resume, a DPI change and the tray menu still need a manual check |
 | M7 — Releases and in-app updates | Done (first real release pending) |
 
 ## M0 — Contracts
@@ -35,7 +35,9 @@ dotnet test ArbetsWatch.slnx                       → 41 passed
 dotnet format ArbetsWatch.slnx --verify-no-changes → ok
 ```
 
-The CI workflow has not run yet; there is no GitHub remote.
+CI on GitHub (`PantaKoda/arbets-watch`, PR #2): `build-test-windows`, `core-tests-linux` and `format` passed after the `win-x64` RID fix for the publish step. SDK pinned to 10.0.401 with `latestPatch`, so analyzer and format rules move only with a deliberate SDK bump.
+
+Review fixes: All Sweden includes ads without a country; `AdFilterSql` is two-valued and composable (negation and two filters per command are tested); an active ad without `timestamp` is applied as the newest state instead of being ordered by its publication date; unreadable `removed_date` text is kept; ambiguous removal dates take the later instant.
 
 ## M2 — Persistence
 
@@ -44,6 +46,8 @@ The CI workflow has not run yet; there is no GitHub remote.
 - `SourceOrder`: incoming states strictly older than the stored one are rejected; ad vs ad in milliseconds, anything involving a removal in whole seconds; ties apply.
 - Unread is decided once, when an ID is first seen after the baseline, from the filter in effect then. Edits, re-publication, filter expansion and re-matching never create unread markers.
 - `AppPreferences` (filter, interval 1–60 min, window, theme, transparency, always-on-top, pause) stored as one JSON value; unreadable values fall back to defaults. `AppPaths` resolves the per-platform data directory.
+
+Review fixes (PR #3): `ad_state.first_seen_utc` is the first sighting *as an ad* (null while an ID is known only from a removal), so an ID first seen as a removal still becomes unread when it appears; a completed snapshot is authoritative for membership (a re-published ad with an older timestamp is restored); activation refuses a snapshot with fewer than half the cached ads (`SnapshotRejectedException`, cache and checkpoint kept); expired ads never become unread on activation; `synchronous = NORMAL` is set on every connection; a stored filter without worktime falls back to all categories.
 
 Validation (local, temporary SQLite files): restart persistence, rollback on failure and cancellation, identical replay, older-state rejection, removal tie, unknown-ID removal, re-publication, unread rules, filter expansion, location change, mark-matching-read scope, expiry without removal, empty interval, 90-day pruning, newer-schema refusal, preferences round trip.
 
@@ -59,6 +63,8 @@ dotnet format --verify-no-changes → ok
 - `RequestGate`: one shared minimum spacing (60 s) and server back-off for every request.
 - `SyncEngine.LoadSnapshotAsync`: captures the start before requesting, stages in 2,000-row transactions, replays `[start − 5 min, now − 2 min]` into staging (older states never overwrite newer ones; removals become tombstones), then activates and checkpoints atomically. `PollIntervalAsync` requests one bounded interval and commits it with its checkpoint.
 - Snapshot policy: first start, time-adapter change, gap over 7 days, or weekly reconciliation.
+- Review fixes (PR #4): valid JSON that isn't an ad fails as `InvalidData` (not retried like a transient error); the stall watchdog runs only while waiting for the network, not while staging writes run; corrupt compressed data is classified; connectivity failures are flagged (`IsConnectivity`); a completed download whose replay or activation failed is reused for 30 minutes instead of downloading ~450 MB again.
+- `PollIntervalAsync` (interval clamp, nothing due, unchanged checkpoint on failure, `Retry-After` deferral) is exercised by the M4 tests, not here.
 
 Validation:
 
@@ -76,6 +82,7 @@ dotnet test ArbetsWatch.slnx → 83 passed
 - Bounded catch-up: up to 16 gated requests per cycle, each interval at most 12 h; gaps over 7 days use a snapshot.
 - Failures keep the cached list visible. Transient: 30 s doubling, capped at the poll interval, ±25 % jitter, never shorter than `Retry-After`. Rejected (4xx): automatic retries stop until a manual refresh. Status phases: Idle, LoadingSnapshot, Updating, Paused, Offline, Failed.
 - Expiry is applied at every commit and at query time, so expired ads disappear without network access.
+- Review fixes (PR #5): the coordinator's lock is held only around each commit (`CommitScope`), never across downloads, throttling waits or a whole catch-up, so filter changes and mark-read stay instant; the loop survives startup read failures, unexpected exceptions and failing event subscribers; jitter is applied before clamping to `Retry-After`; invalid data and rejected snapshots retry after at least 30 minutes; offline is detected from the client's connectivity flag (stalls and dropped connections included); background reconciliation snapshots are not shown as foreground; pausing stops a running catch-up between steps.
 
 Validation: coordinator tests with a fake clock (startup snapshot, timer, coalesced manual refreshes, transient backoff window, permanent stop and manual recovery, pause/unpause, filter change during a running batch, 30-hour catch-up in three contiguous ≤ 12 h intervals, restart scheduling) and engine tests (autumn DST intervals with exact query strings, nothing requested before due, `Retry-After` deferring the shared gate without moving the checkpoint, gate spacing, sparse removal plus expiry in one poll).
 
@@ -103,6 +110,8 @@ Validation on Windows 11 (Debug build, scratch data folder via `ARBETSWATCH_DATA
 - Startup poll after more than 5 minutes; a manual refresh waited for the 60 s request spacing, then applied 17 records.
 - Dark theme (`docs/images/list-dark.png`).
 
+Review fixes (PR #6): "Mark these as read" clears exactly the rows shown (`AdStore.MarkReadAsync(ids)`), never held-back or newly committed ads; an unreadable database is moved aside only when SQLite reports it corrupt or not a database, never paired with old sidecar files, and any other open error stops with a message box and changes nothing (`StoreOpener`, tested; a leaked connection on a failed open was fixed too); a newer-version database also shows a message instead of exiting silently; filter changes reload the list immediately; read-state write failures show a notice instead of crashing; only a user close hides to the tray, so sign-out and shutdown close normally; resume detection is a tested `ResumeDetector` on `TimeProvider`; shutdown steps can't skip each other. Live: a garbage `arbetswatch.db` started fresh with the notice and the old file kept as `arbetswatch.db.unreadable-<time>`.
+
 Not verified: opening an ad in the browser (not clicked, to avoid launching your browser), held updates while scrolled (no matching new ads arrived during the session), transparency on/off, high contrast and reduced motion.
 
 ```text
@@ -127,16 +136,17 @@ pwsh scripts/publish-windows.ps1 → 118 tests passed; ArbetsWatch-0.1.0-win-x64
 
 - Published exe started with `PATH=C:\Windows\System32;C:\Windows` and no `DOTNET_ROOT`: runs (self-contained).
 - Offline restart (only the app process pointed at a refused proxy): saved list shown immediately; the scheduled poll failed as "No connection to Arbetsförmedlingen. Showing saved ads."; retry scheduled with backoff; Quit logged "Stopped".
-- Saved bounds at (−6000, −6000): window opened on screen at (0, 0).
+- Off-screen bounds: with saved bounds beyond both displays (x = 6000), the window opened at (1940, 100), at the right edge of the primary display. Windows clamps a start position outside every display onto the nearest display before the window opens, so ArbetsWatch's own recovery (which centers the window and now logs "was unreachable") did not need to run. The earlier (−6000, −6000) → (0, 0) result had the same cause.
+- Two displays (2560×1440 primary, 1920×1080 to its right, both 96 DPI): the window moved onto the second display was saved there on Quit and reopened at the same place (2700, 150). Both displays have the same scaling, so this is not a DPI-change check.
 - Transparent + dark theme: frosted surface with opaque text (captured).
 
 Limitations and checks not performed:
 
-- Real sleep/resume was not exercised (the machine was not put to sleep); only the gap-detection code path exists.
-- DPI and monitor changes were not exercised (single display); only the off-screen recovery was.
-- Tray icon clicks and menu items were not driven by automation; the tray reported as available.
+- Real sleep/resume was not exercised (the machine was not put to sleep). `ResumeDetector` is unit-tested with a fake clock (a missed 30 s tick after an hour reports the gap), and the coordinator's catch-up after a 30 h gap is tested; the live path from a real suspend is unverified.
+- A display-scaling (DPI) change was not exercised; both displays run at 96 DPI.
+- The tray icon and its menu were not driven: UI Automation reaches only the taskbar button, not the notification-area icon. The app reports the tray as available.
+- Manual check still needed: put the PC to sleep for a few minutes and wake it (expect `Resumed after … catching up` in the log and a refresh), change display scaling with the app open, and click each tray menu item.
 - With transparency on, the blur also fills the 6 px margin outside the rounded frame.
-- Off-screen recovery places the window at the working area's origin rather than centering it.
 - Not code-signed; no installer; Windows x64 only.
 
 ## M7 — Releases and in-app updates
@@ -163,4 +173,4 @@ Not yet verified: download of a real GitHub release asset (needs a published rel
 
 ## Next step
 
-Review and merge the PRs in order, then tag `v0.1.0` on `main` to publish the first release. A later `v0.1.1` exercises the in-app update against GitHub end to end.
+Run the manual M6 checks, merge the PR stack into `main` in order, then tag `v0.1.0` on a reviewed `main` commit to publish the first release (AGENTS.md section 11). A later `v0.1.1` exercises the in-app update against GitHub end to end.
