@@ -10,7 +10,7 @@ Status of the milestones in `AGENTS.md`, with the validation that was actually r
 | M3 — Bootstrap | Done |
 | M4 — Monitoring | Done |
 | M5 — Usable UI | Done |
-| M6 — Desktop release | Done (see limitations) |
+| M6 — Desktop release | In progress: real sleep/resume, a DPI change and the tray menu still need a manual check |
 
 ## M0 — Contracts
 
@@ -135,18 +135,19 @@ pwsh scripts/publish-windows.ps1 → 118 tests passed; ArbetsWatch-0.1.0-win-x64
 
 - Published exe started with `PATH=C:\Windows\System32;C:\Windows` and no `DOTNET_ROOT`: runs (self-contained).
 - Offline restart (only the app process pointed at a refused proxy): saved list shown immediately; the scheduled poll failed as "No connection to Arbetsförmedlingen. Showing saved ads."; retry scheduled with backoff; Quit logged "Stopped".
-- Saved bounds at (−6000, −6000): window opened on screen at (0, 0).
+- Off-screen bounds: with saved bounds beyond both displays (x = 6000), the window opened at (1940, 100), at the right edge of the primary display. Windows clamps a start position outside every display onto the nearest display before the window opens, so ArbetsWatch's own recovery (which centers the window and now logs "was unreachable") did not need to run. The earlier (−6000, −6000) → (0, 0) result had the same cause.
+- Two displays (2560×1440 primary, 1920×1080 to its right, both 96 DPI): the window moved onto the second display was saved there on Quit and reopened at the same place (2700, 150). Both displays have the same scaling, so this is not a DPI-change check.
 - Transparent + dark theme: frosted surface with opaque text (captured).
 
 Limitations and checks not performed:
 
-- Real sleep/resume was not exercised (the machine was not put to sleep); only the gap-detection code path exists.
-- DPI and monitor changes were not exercised (single display); only the off-screen recovery was.
-- Tray icon clicks and menu items were not driven by automation; the tray reported as available.
+- Real sleep/resume was not exercised (the machine was not put to sleep). `ResumeDetector` is unit-tested with a fake clock (a missed 30 s tick after an hour reports the gap), and the coordinator's catch-up after a 30 h gap is tested; the live path from a real suspend is unverified.
+- A display-scaling (DPI) change was not exercised; both displays run at 96 DPI.
+- The tray icon and its menu were not driven: UI Automation reaches only the taskbar button, not the notification-area icon. The app reports the tray as available.
+- Manual check still needed: put the PC to sleep for a few minutes and wake it (expect `Resumed after … catching up` in the log and a refresh), change display scaling with the app open, and click each tray menu item.
 - With transparency on, the blur also fills the 6 px margin outside the rounded frame.
-- Off-screen recovery places the window at the working area's origin rather than centering it.
 - Not code-signed; no installer; Windows x64 only.
 
 ## Next step
 
-Create the GitHub repository (not done: no remote was authorized), push the milestone branches, open PRs and let CI run. Then a first draft release from a reviewed commit on `main`.
+Run the manual M6 checks above, merge the PR stack into `main` in order, then tag the first release from a reviewed `main` commit (AGENTS.md section 11).

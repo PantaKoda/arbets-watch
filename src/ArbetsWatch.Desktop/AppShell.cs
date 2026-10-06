@@ -252,7 +252,7 @@ public sealed class AppShell : IShell, IDisposable
         _window.Activate();
     }
 
-    private static void RestoreBounds(Window window, WindowBounds? bounds)
+    private void RestoreBounds(Window window, WindowBounds? bounds)
     {
         window.WindowStartupLocation = bounds is null ? WindowStartupLocation.CenterScreen : WindowStartupLocation.Manual;
         if (bounds is null)
@@ -267,7 +267,7 @@ public sealed class AppShell : IShell, IDisposable
     }
 
     /// <summary>Moves the window onto a working area if a monitor or DPI change left it unreachable.</summary>
-    private static void EnsureReachable(Window window)
+    private void EnsureReachable(Window window)
     {
         var screens = window.Screens.All;
         if (screens.Count == 0)
@@ -288,7 +288,9 @@ public sealed class AppShell : IShell, IDisposable
         var area = primary.WorkingArea;
         var width = Math.Min(box.Width, area.Width);
         var height = Math.Min(box.Height, area.Height);
-        window.Position = new PixelPoint(area.X + ((area.Width - width) / 2), area.Y + ((area.Height - height) / 2));
+        var centered = new PixelPoint(area.X + ((area.Width - width) / 2), area.Y + ((area.Height - height) / 2));
+        _logger.LogInformation("Window at {From} was unreachable; centered on the primary display at {To}", window.Position, centered);
+        window.Position = centered;
     }
 
     private void ScheduleBounds()

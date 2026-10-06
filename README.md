@@ -19,7 +19,7 @@ No account or API key is needed. Data stays on your PC in `%LOCALAPPDATA%\Arbets
 
 1. Build the portable ZIP with `pwsh scripts/publish-windows.ps1` (see below), or take `ArbetsWatch-<version>-win-x64.zip` from a release.
 2. Check the download: `Get-FileHash ArbetsWatch-<version>-win-x64.zip -Algorithm SHA256` must match the `.sha256` file.
-3. Extract it to a folder you can write to, for example `%LOCALAPPDATA%\Programs\ArbetsWatch`, and start `ArbetsWatch\ArbetsWatch.exe`.
+3. Extract it into a folder you can write to, for example `%LOCALAPPDATA%\Programs` (the zip contains an `ArbetsWatch` folder), and start `ArbetsWatch\ArbetsWatch.exe`.
 
 The ZIP is self-contained (the .NET runtime is included) and needs no administrator rights. The executable is not code-signed, so Windows SmartScreen may warn; continue only when the hash matches.
 
