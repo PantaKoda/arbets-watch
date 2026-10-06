@@ -75,6 +75,27 @@ internal static class Schema
             removed INTEGER NOT NULL DEFAULT 0
         );
         """,
+
+        // 2: ad_state.first_seen_utc becomes nullable in every database. Pre-release builds created v1 with NOT NULL,
+        //    which made recording a removal for an unknown ID fail every refresh. SQLite can't drop a column
+        //    constraint, so the table is rebuilt (cheap: one row per ad).
+        """
+        CREATE TABLE ad_state_v2 (
+            id TEXT NOT NULL PRIMARY KEY,
+            first_seen_utc INTEGER,
+            unread INTEGER NOT NULL DEFAULT 0,
+            changed_utc INTEGER NOT NULL,
+            changed_kind TEXT NOT NULL,
+            inactive_since_utc INTEGER,
+            inactive_reason TEXT
+        );
+        INSERT INTO ad_state_v2 (id, first_seen_utc, unread, changed_utc, changed_kind, inactive_since_utc, inactive_reason)
+        SELECT id, first_seen_utc, unread, changed_utc, changed_kind, inactive_since_utc, inactive_reason FROM ad_state;
+        DROP TABLE ad_state;
+        ALTER TABLE ad_state_v2 RENAME TO ad_state;
+        CREATE INDEX ix_state_unread ON ad_state (unread) WHERE unread = 1;
+        CREATE INDEX ix_state_inactive ON ad_state (inactive_since_utc) WHERE inactive_since_utc IS NOT NULL;
+        """,
     ];
 
     public static int LatestVersion => Migrations.Length;
