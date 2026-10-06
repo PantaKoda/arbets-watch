@@ -35,7 +35,18 @@ One download from a home connection, 2026-10-06 18:59:40Z – 19:00:48Z:
 
 Consequences: the snapshot must be streamed into staging, never buffered or deserialized as a whole. Since there is no `Content-Length`, completeness is judged by the response ending normally and every line parsing. Download time dominates; local processing is cheap. The guide's "about 300 MB" is out of date.
 
-The measurement program was a throw-away `curl` + Python script; memory use of the .NET implementation is measured in M3.
+The measurement program was a throw-away `curl` + Python script.
+
+**.NET implementation (M3), same day, same connection,** running `SyncEngine.LoadSnapshotAsync` into a fresh database, Release build:
+
+| Measure | Value |
+|---|---|
+| Snapshot download + staging + replay + activation | 40,849 ads in 73.4 s |
+| Peak working set (sampled every 250 ms) | 79 MB; managed heap afterwards 15 MB |
+| SQLite database after activation | 31 MB |
+| Query: all Sweden, sorted | 40,628 rows in 318 ms |
+| Query: Göteborg, Deltid | 374 rows in 12 ms |
+| One live interval with `%2B`/`%3A`-encoded offset bounds | 3 records in 66 ms, accepted |
 
 ## Time semantics
 
