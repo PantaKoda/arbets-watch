@@ -2,6 +2,7 @@ using ArbetsWatch.Core.Ads;
 using ArbetsWatch.Core.Filtering;
 using ArbetsWatch.Core.Storage;
 using ArbetsWatch.Core.Time;
+using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging;
 
 namespace ArbetsWatch.Core.Sync;
@@ -188,6 +189,16 @@ public sealed class SyncEngine(
 
         _completedStaging = null;
         logger.LogInformation("Snapshot activated: {Result}", result);
+
+        // The activation is committed; giving back the space staging used is best effort.
+        try
+        {
+            await store.ReclaimSpaceAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is SqliteException or IOException)
+        {
+            logger.LogWarning(ex, "Reclaiming database space after the snapshot failed");
+        }
         return new SyncOutcome(SyncKind.Snapshot, end, result, received)
         {
             Behind = time.GetUtcNow() - options.SafetyLag - end > options.MaxInterval,

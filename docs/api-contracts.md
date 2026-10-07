@@ -120,6 +120,25 @@ REST: `GET https://taxonomy.api.jobtechdev.se/v1/taxonomy/main/concepts?type=mun
 
 ArbetsWatch calls it only when the user opens an ad's details, stores nothing from it, and never lets it touch the cache (JobStream stays the only owner). Links are offered as buttons only when they are http(s) web pages or plain e-mail addresses (`ExternalLinks`); scheme-less `www.` values are read as https; everything else stays text. Descriptions are shown as plain text (`description.text`), never as the HTML `text_formatted`.
 
+## Text search (local)
+
+Requested after v0.1.2: search ad titles and descriptions within the place and worktime filters. This deliberately goes beyond the original v0.1 scope (AGENTS.md deferred full-text search and asked not to store descriptions); the user asked for it, and it needs the description text locally because JobStream has no search and JobSearch's search window (100 per page, offset ≤ 2,000) cannot be combined with the complete local cache.
+
+- Stored: `ad_text(id, body)`, where `body` is the title and `description.text`, folded by `TextSearch.Body` (Unicode NFC, invariant lower case, whitespace collapsed). Not stored: `text_formatted`, `company_information`, `needs`, `requirements`, `conditions`. A trigger deletes the text with its `ad_summary` row (removal, expiry, absence).
+- Matching: every term (or "quoted phrase") must occur as a substring (`instr`), so Swedish compounds match ("utvecklare" finds "Systemutvecklare"). The indexed filters narrow the rows before the text is scanned. Search narrows the view only; unread decisions ignore it.
+- FTS5 was measured and not used: a contentless `unicode61` index with 3-character prefixes was 88 MB for the same text, and token matching misses compounds.
+
+Measured 2026-10-07 (Windows 11, Release):
+
+| Measure | Value |
+|---|---|
+| `description.text` in a 12-hour stream sample | 2,696 ads, mean 3.2 KB, max 6.6 KB (UTF-8) |
+| Substring scan over 42,000 such bodies (Python `sqlite3` 3.50.4) | 250–280 ms per query, matching or not |
+| Database after the first snapshot with descriptions | 191 MB, empty WAL (was 31–33 MB); peaks near 375 MB plus WAL while a snapshot is staged |
+| Upgrading a real 0.1.2 cache (41,721 ads) | migration + one-off `VACUUM` ≈ 2 s at start (33 → 20 MB), titles searchable at once; the next refresh downloads a snapshot (41,735 ads in 4 min 36 s at ≈ 1.7 MB/s that day) |
+
+Disk space: the database uses `auto_vacuum = INCREMENTAL` (switched on with one `VACUUM` for existing files) and `journal_size_limit` of 64 MB; after each snapshot activation `PRAGMA incremental_vacuum` and `wal_checkpoint(TRUNCATE)` give back the space staging used.
+
 ## Polling policy (app policy, not API guarantees)
 
 - Interval `[C − 5 min overlap, E]`, where `E = floor_to_second(now − 2 min safety lag)` is fixed before the request, and `C` is the last committed `E`.

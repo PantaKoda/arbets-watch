@@ -94,6 +94,24 @@
                           ToolTip.Tip="Ads that do not state full-time or part-time" AutomationProperties.Name="Worktime not specified" />
           </Grid>
 
+          <!-- Search: titles and descriptions of the ads that pass the filters above. -->
+          <TextBox Name="AdSearch" DockPanel.Dock="Top" Classes="search adsearch" Margin="12,0,12,8"
+                   Text="{Binding AdSearchText}" MaxLength="200"
+                   PlaceholderText="Search titles and descriptions (Ctrl+F)"
+                   ToolTip.Tip="Every word must appear; use &quot;quotes&quot; for a phrase. Your places and worktime still apply."
+                   AutomationProperties.Name="Search ads">
+            <TextBox.InnerLeftContent>
+              <PathIcon Data="{StaticResource IconSearch}" Width="12" Height="12" Margin="8,0,0,0"
+                        Foreground="{DynamicResource HudAccentBrush}" />
+            </TextBox.InnerLeftContent>
+            <TextBox.InnerRightContent>
+              <Button Classes="icon small" Command="{Binding ClearSearchCommand}" IsVisible="{Binding AdSearchText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                      ToolTip.Tip="Clear the search (Esc)" AutomationProperties.Name="Clear search">
+                <PathIcon Data="{StaticResource IconClose}" Width="9" Height="9" />
+              </Button>
+            </TextBox.InnerRightContent>
+          </TextBox>
+
           <!-- After an update (or a failed one): said once, dismissible. -->
           <Border DockPanel.Dock="Bottom" IsVisible="{Binding HasStartupNotice}" Background="{DynamicResource PanelBrush}"
                   BorderBrush="{DynamicResource HudFrameBrush}" BorderThickness="1" CornerRadius="8" Margin="10,0,10,4" Padding="10,4,4,4">
@@ -163,6 +181,14 @@
             <StackPanel IsVisible="{Binding ShowNoMatches}" Margin="20" Spacing="10" VerticalAlignment="Center">
               <TextBlock Classes="heading" Text="No ads match these filters" />
               <TextBlock TextWrapping="Wrap" Text="Try more places or another worktime. New ads appear here as soon as they are found." />
+            </StackPanel>
+
+            <StackPanel IsVisible="{Binding ShowNoSearchMatches}" Margin="20" Spacing="10" VerticalAlignment="Center">
+              <TextBlock Classes="heading" Text="{Binding NoSearchMatchesText}" TextWrapping="Wrap" />
+              <TextBlock TextWrapping="Wrap" Text="The search looks in the titles and descriptions of the ads in your places and worktime. Try fewer or shorter words, or widen the filters." />
+              <TextBlock Classes="secondary" TextWrapping="Wrap" IsVisible="{Binding DescriptionsPending}"
+                         Text="Descriptions of the saved ads arrive with the next full download, so only titles are searched for now." />
+              <Button Content="Clear search" Command="{Binding ClearSearchCommand}" HorizontalAlignment="Left" />
             </StackPanel>
 
             <!-- The list. Updates arriving while you are scrolled down wait behind the pill at the top. -->

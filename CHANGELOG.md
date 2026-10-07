@@ -1,5 +1,10 @@
 # Changelog
 
+## [Unreleased]
+
+- Search: a search box under the filters (Ctrl+F) finds ads by words in the title or the description. It searches only the ads that pass your places and worktime, matches parts of words ("utvecklare" also finds "Systemutvecklare"), requires every word, and takes "quoted phrases". Esc or × clears it. Search only narrows the list; it never changes what counts as new.
+- To search descriptions, ArbetsWatch now keeps each current ad's description text locally. After updating, the next refresh downloads the full list once more (about 450 MB) to fetch them; titles are searchable straight away. The database grows accordingly (see the README).
+
 ## [0.1.2] - 2026-10-07
 
 - Ad details: a new button next to "Open on Platsbanken" in each row (or Ctrl+D) opens a window with the ad organised into tables: how to apply (the employer's application link or e-mail, reference and instructions when the ad has them), the job (employer, worktime, employment, salary, address, deadline with days left, experience, driving licence), qualifications marked Required or Merit, contacts, and the full description. Details are fetched when you open them and never stored; viewing them marks the ad read.

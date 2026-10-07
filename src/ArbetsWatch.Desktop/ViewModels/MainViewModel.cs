@@ -53,6 +53,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     private readonly UpdateService? _updates;
     private AppPreferences _preferences;
     private SyncStatus _status;
+    private readonly DispatcherTimer _searchDelay;
+    private TextSearch _search = TextSearch.None;
     private int _reloadVersion;
     private bool _syncingWorktime;
     private bool _syncingSettings;
@@ -110,6 +112,14 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
         UpdateUpdateState();
 
+        // Typing settles before the list is searched again.
+        _searchDelay = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(250) };
+        _searchDelay.Tick += (_, _) =>
+        {
+            _searchDelay.Stop();
+            ApplySearch();
+        };
+
         _clock = new DispatcherTimer { Interval = TimeSpan.FromSeconds(20) };
         _clock.Tick += (_, _) => UpdateStatusText();
         _clock.Start();
@@ -121,6 +131,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         Initial,
         DataChanged,
         FilterChanged,
+        SearchChanged,
         ShowHeld,
     }
 
@@ -210,6 +221,21 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     public partial bool ShowNoMatches { get; set; }
 
+    [ObservableProperty]
+    public partial bool ShowNoSearchMatches { get; set; }
+
+    // ---- Search -----------------------------------------------------------------------------------------
+
+    /// <summary>Free text searched in the titles and descriptions of the ads that pass the filters.</summary>
+    [ObservableProperty]
+    public partial string AdSearchText { get; set; } = string.Empty;
+
+    [ObservableProperty]
+    public partial string NoSearchMatchesText { get; set; } = string.Empty;
+
+    [ObservableProperty]
+    public partial bool DescriptionsPending { get; set; }
+
     // ---- Settings ---------------------------------------------------------------------------------------
 
     [ObservableProperty]
@@ -273,6 +299,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     public void Dispose()
     {
         _clock.Stop();
+        _searchDelay.Stop();
         _coordinator.StatusChanged -= _onStatus;
         _coordinator.DataChanged -= _onData;
     }
@@ -369,8 +396,41 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private void ClosePanels()
     {
+        if (!IsPlacesOpen && !IsSettingsOpen && AdSearchText.Length > 0)
+        {
+            ClearSearch(); // Esc with nothing open clears the search
+            return;
+        }
+
         IsPlacesOpen = false;
         IsSettingsOpen = false;
+    }
+
+    [RelayCommand]
+    private void ClearSearch()
+    {
+        AdSearchText = string.Empty;
+        _searchDelay.Stop();
+        ApplySearch();
+    }
+
+    partial void OnAdSearchTextChanged(string value)
+    {
+        _searchDelay.Stop();
+        _searchDelay.Start();
+    }
+
+    private void ApplySearch()
+    {
+        var search = TextSearch.Parse(AdSearchText);
+        if (search.Equals(_search))
+        {
+            return;
+        }
+
+        _search = search;
+        NoSearchMatchesText = $"Nothing matches “{AdSearchText.Trim()}”";
+        _ = ReloadAsync(ReloadReason.SearchChanged);
     }
 
     [RelayCommand]
@@ -580,13 +640,18 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     {
         var version = ++_reloadVersion;
         var filter = _preferences.Filter;
+        var search = _search;
         var now = _time.GetUtcNow();
         IReadOnlyList<AdRow> rows;
         int total;
         try
         {
-            rows = await _store.QueryAsync(filter, now).ConfigureAwait(true);
+            rows = await _store.QueryAsync(filter, now, search: search).ConfigureAwait(true);
             total = await _store.CountCurrentAsync(now).ConfigureAwait(true);
+
+            // A cache from before search has titles only until its next snapshot (schema 3 clears the snapshot time).
+            var sync = await _store.ReadSyncStateAsync().ConfigureAwait(true);
+            DescriptionsPending = sync.BaselineEstablished && sync.LastSnapshotUtc is null;
         }
         catch (Exception ex)
         {
@@ -605,7 +670,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         if (applyNow)
         {
             ApplyRows(rows, now, flashNew: reason == ReloadReason.DataChanged || reason == ReloadReason.ShowHeld);
-            if (reason == ReloadReason.ShowHeld)
+            if (reason is ReloadReason.ShowHeld or ReloadReason.SearchChanged)
             {
                 ScrollToTopRequested?.Invoke(this, EventArgs.Empty);
             }
@@ -696,7 +761,9 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         ShowFirstDownload = !hasData && _status.Phase == SyncPhase.LoadingSnapshot;
         ShowNoData = !hasData && !ShowFirstDownload;
         ShowChoosePlaces = hasData && !filter.HasGeography;
-        ShowNoMatches = hasData && filter.HasGeography && Rows.Count == 0;
+        ShowNoMatches = hasData && filter.HasGeography && Rows.Count == 0 && _search.IsEmpty;
+        ShowNoSearchMatches = hasData && filter.HasGeography && Rows.Count == 0 && !_search.IsEmpty;
+
         ShowList = hasData && Rows.Count > 0;
     }
 

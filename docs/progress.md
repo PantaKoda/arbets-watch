@@ -173,6 +173,24 @@ Review fixes (PR #8): `UpdateService.Dispose` is idempotent and owned by `Progra
 
 Not yet verified: download of a real GitHub release asset (needs a published release) and the release workflow itself (runs on the first tag).
 
+## Search (after v0.1.2)
+
+Search box under the filters (Ctrl+F; Esc or × clears it), over titles and descriptions of the ads that pass the place and worktime filters. Design and measurements: `docs/api-contracts.md`, "Text search (local)".
+
+- Core: `TextSearch` (parsing, folding, SQL and in-memory forms tested for equivalence); `AdSummary.Description` from `description.text`; schema 3 adds `ad_text`, its delete trigger and a staging column, and clears `last_snapshot_utc` so the next refresh fetches descriptions; titles of an existing cache are backfilled at start. `AdStore.QueryAsync(..., search)`; `ReclaimSpaceAsync` after each snapshot.
+- UI: debounced (250 ms) search box; "Nothing matches “…”" state with Clear search, and a note while an upgraded cache still has titles only.
+
+Validation on Windows 11:
+
+```text
+dotnet restore ArbetsWatch.slnx --locked-mode; build Release → 0 warnings
+dotnet test → 222 passed (18 new in SearchTests: parsing, folding, SQL/memory equivalence, filters + search, updates/removal/expiry/snapshot keep the text in step, schema 2 upgrade, space reclaim)
+dotnet format --verify-no-changes → clean
+```
+
+- Live, on copies of the real 0.1.2 database in a separate data folder (the installed app was not touched): the upgrade made "utvecklare" find compound titles at once (95 ads in the saved places); after the snapshot "kollektivavtal" (description-only) found 808 ads and "sjuksköterska natt" 9 (`docs/images/search-sjukskoterska-natt.png`); a nonsense term showed the empty state with the titles-only note; × cleared the search (3,993 ads again). Database 191 MB with an empty WAL after the snapshot.
+- Not verified live: Ctrl+F and Esc (Windows refused to bring the test window to the foreground for synthetic keys).
+
 ## Next step
 
 Publish `v0.1.0` (tag on `main`, Release workflow), then run the manual M6 checks (sleep/resume, DPI change, tray menu). A later `v0.1.1` exercises the in-app update against GitHub end to end.
