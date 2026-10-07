@@ -29,6 +29,8 @@ public interface IShell
 
     void ShowUpdateWindow();
 
+    void ShowAdDetails(AdRowViewModel row);
+
     void SavePreferences(AppPreferences preferences);
 
     void Quit();
@@ -373,6 +375,37 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     [RelayCommand]
     private void Hide() => _shell.HideWindow();
+
+    [RelayCommand]
+    private void OpenDetails(AdRowViewModel? row)
+    {
+        row ??= SelectedRow;
+        if (row is not null)
+        {
+            _shell.ShowAdDetails(row);
+        }
+    }
+
+    /// <summary>Viewing an ad's details counts as reading it, like opening it on Platsbanken.</summary>
+    public async Task MarkRowReadAsync(AdRowViewModel row)
+    {
+        if (!row.Unread)
+        {
+            return;
+        }
+
+        try
+        {
+            await _store.MarkReadAsync(row.Id).ConfigureAwait(true);
+            row.Unread = false;
+            UnreadCount = Rows.Count(r => r.Unread && !r.IsGone);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Saving read state failed");
+            ShowNotice("Could not save that the ad was read.");
+        }
+    }
 
     [RelayCommand]
     private void OpenUpdate() => _shell.ShowUpdateWindow();

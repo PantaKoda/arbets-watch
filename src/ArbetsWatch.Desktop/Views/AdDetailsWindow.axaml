@@ -1,0 +1,184 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:ArbetsWatch.Desktop.ViewModels"
+        x:Class="ArbetsWatch.Desktop.Views.AdDetailsWindow"
+        x:DataType="vm:AdDetailsViewModel"
+        Title="{Binding WindowTitle}"
+        Width="680" Height="780" MinWidth="460" MinHeight="400"
+        WindowStartupLocation="CenterOwner"
+        Background="{DynamicResource WidgetSurfaceBrush}">
+  <Window.Styles>
+    <!-- Two-column tables: a dim label column of shared width and the value; alternate rows tinted. -->
+    <Style Selector="Border.table">
+      <Setter Property="BorderBrush" Value="{DynamicResource HudFrameBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="{StaticResource RadiusMedium}" />
+      <Setter Property="ClipToBounds" Value="True" />
+    </Style>
+    <Style Selector="Border.row">
+      <Setter Property="Padding" Value="12,7" />
+    </Style>
+    <Style Selector="ItemsControl.striped ContentPresenter:nth-child(2n) Border.row">
+      <Setter Property="Background" Value="{DynamicResource PanelBrush}" />
+    </Style>
+    <Style Selector="TextBlock.label">
+      <Setter Property="Foreground" Value="{DynamicResource HudDimBrush}" />
+      <Setter Property="FontSize" Value="12.5" />
+      <Setter Property="Margin" Value="0,0,16,0" />
+    </Style>
+    <Style Selector="TextBlock.section">
+      <Setter Property="FontSize" Value="11" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="LetterSpacing" Value="2" />
+      <Setter Property="Foreground" Value="{DynamicResource HudAccentBrush}" />
+      <Setter Property="Margin" Value="2,18,0,6" />
+    </Style>
+    <Style Selector="Border.chip.required">
+      <Setter Property="BorderBrush" Value="{DynamicResource HudAccentBrush}" />
+    </Style>
+    <Style Selector="Border.chip.required TextBlock">
+      <Setter Property="Foreground" Value="{DynamicResource HudAccentBrush}" />
+    </Style>
+  </Window.Styles>
+
+  <DockPanel>
+    <!-- Header -->
+    <Border DockPanel.Dock="Top" Padding="20,16,20,10" BorderBrush="{DynamicResource HudFrameBrush}" BorderThickness="0,0,0,1">
+      <StackPanel Spacing="4">
+        <SelectableTextBlock Text="{Binding Title}" FontSize="18" FontWeight="SemiBold" TextWrapping="Wrap" />
+        <TextBlock Classes="secondary" Text="{Binding Subtitle}" FontSize="13" TextWrapping="Wrap" TextTrimming="None" />
+        <ProgressBar Classes="scan" IsVisible="{Binding IsLoading}" Margin="0,6,0,0" />
+      </StackPanel>
+    </Border>
+
+    <ScrollViewer>
+      <StackPanel Margin="20,4,20,20">
+        <!-- Error / no longer published -->
+        <Border IsVisible="{Binding HasError}" Classes="table" Padding="14,10" Margin="0,14,0,0">
+          <StackPanel Spacing="8">
+            <TextBlock Text="{Binding Error}" TextWrapping="Wrap" />
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <Button Content="Try again" Command="{Binding RetryCommand}" IsVisible="{Binding CanRetry}" />
+              <Button Content="Open on Platsbanken" Command="{Binding OpenPlatsbankenCommand}" />
+            </StackPanel>
+          </StackPanel>
+        </Border>
+
+        <StackPanel IsVisible="{Binding IsLoaded}">
+          <!-- How to apply -->
+          <TextBlock Classes="section" Text="HOW TO APPLY" />
+          <Border Classes="table" Padding="14,12">
+            <StackPanel Spacing="10">
+              <WrapPanel ItemSpacing="8" LineSpacing="8">
+                <Button Classes="accent" Command="{Binding OpenApplyLinkCommand}" IsVisible="{Binding HasApplyLink}"
+                        ToolTip.Tip="{Binding ApplyLinkTarget}" AutomationProperties.Name="{Binding ApplyLinkText}">
+                  <TextBlock Text="{Binding ApplyLinkText}" />
+                </Button>
+                <Button Command="{Binding EmailApplyCommand}" IsVisible="{Binding HasApplyEmail}"
+                        ToolTip.Tip="Opens your e-mail program with the ad's reference as the subject"
+                        AutomationProperties.Name="{Binding ApplyEmail, StringFormat='Apply by e-mail to {0}'}">
+                  <TextBlock Text="{Binding ApplyEmail, StringFormat='E-mail {0}'}" />
+                </Button>
+                <Button Content="Apply on Platsbanken" Command="{Binding OpenPlatsbankenCommand}" IsVisible="{Binding ApplyViaPlatsbanken}" />
+                <Button Content="Open on Platsbanken" Command="{Binding OpenPlatsbankenCommand}" IsVisible="{Binding !ApplyViaPlatsbanken}" />
+              </WrapPanel>
+              <SelectableTextBlock Text="{Binding ApplyLinkTarget}" IsVisible="{Binding HasApplyLink}" TextWrapping="Wrap"
+                                   FontSize="12" Foreground="{DynamicResource HudDimBrush}" />
+              <SelectableTextBlock Text="{Binding ApplyNote}" IsVisible="{Binding HasApplyNote}" TextWrapping="Wrap" />
+              <SelectableTextBlock Text="{Binding ApplyReference, StringFormat='Reference: {0}'}" IsVisible="{Binding HasApplyReference}"
+                                   TextWrapping="Wrap" FontSize="12.5" />
+              <TextBlock IsVisible="{Binding HasNoApplyInfo}" TextWrapping="Wrap" Classes="secondary" TextTrimming="None"
+                         Text="The ad doesn't say how to apply. Check the ad on Platsbanken." />
+              <TextBlock Text="{Binding LinkNotice}" IsVisible="{Binding LinkNotice, Converter={x:Static ObjectConverters.IsNotNull}}"
+                         Foreground="{DynamicResource StatusWarningBrush}" />
+            </StackPanel>
+          </Border>
+
+          <!-- Key facts -->
+          <TextBlock Classes="section" Text="THE JOB" />
+          <Border Classes="table" Grid.IsSharedSizeScope="True">
+            <ItemsControl Classes="striped" ItemsSource="{Binding Facts}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:FactRow">
+                  <Border Classes="row">
+                    <Grid>
+                      <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" SharedSizeGroup="label" />
+                        <ColumnDefinition Width="*" />
+                      </Grid.ColumnDefinitions>
+                      <TextBlock Classes="label" Text="{Binding Label}" VerticalAlignment="Top" />
+                      <SelectableTextBlock Grid.Column="1" Text="{Binding Value}" TextWrapping="Wrap" />
+                    </Grid>
+                  </Border>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </Border>
+          <Button Classes="link" Command="{Binding OpenEmployerWebsiteCommand}" IsVisible="{Binding HasEmployerWebsite}" Margin="0,6,0,0">
+            <TextBlock Text="{Binding EmployerWebsiteText, StringFormat='Employer website: {0}'}" />
+          </Button>
+
+          <!-- Requirements -->
+          <StackPanel IsVisible="{Binding HasRequirements}">
+            <TextBlock Classes="section" Text="QUALIFICATIONS" />
+            <Border Classes="table" Grid.IsSharedSizeScope="True">
+              <ItemsControl Classes="striped" ItemsSource="{Binding Requirements}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="vm:RequirementRow">
+                    <Border Classes="row">
+                      <Grid>
+                        <Grid.ColumnDefinitions>
+                          <ColumnDefinition Width="Auto" SharedSizeGroup="category" />
+                          <ColumnDefinition Width="*" />
+                          <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Classes="label" Text="{Binding Category}" VerticalAlignment="Center" />
+                        <SelectableTextBlock Grid.Column="1" Text="{Binding Label}" TextWrapping="Wrap" VerticalAlignment="Center" />
+                        <Border Grid.Column="2" Classes="chip" Classes.required="{Binding Required}" Margin="12,0,0,0">
+                          <TextBlock Text="{Binding Kind}" />
+                        </Border>
+                      </Grid>
+                    </Border>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </Border>
+          </StackPanel>
+
+          <!-- Contacts -->
+          <StackPanel IsVisible="{Binding HasContacts}">
+            <TextBlock Classes="section" Text="CONTACTS" />
+            <Border Classes="table">
+              <ItemsControl Classes="striped" ItemsSource="{Binding Contacts}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="vm:ContactRow">
+                    <Border Classes="row">
+                      <StackPanel Spacing="2">
+                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
+                        <TextBlock Classes="secondary" Text="{Binding Role}" TextWrapping="Wrap" TextTrimming="None" />
+                        <Button Classes="link" IsVisible="{Binding HasEmail}" HorizontalAlignment="Left"
+                                Command="{Binding $parent[Window].((vm:AdDetailsViewModel)DataContext).EmailContactCommand}"
+                                CommandParameter="{Binding}" AutomationProperties.Name="{Binding Email, StringFormat='E-mail {0}'}">
+                          <TextBlock Text="{Binding Email}" />
+                        </Button>
+                        <SelectableTextBlock Text="{Binding Phone}" IsVisible="{Binding HasPhone}" FontSize="12.5" />
+                      </StackPanel>
+                    </Border>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </Border>
+          </StackPanel>
+
+          <!-- Description (plain text; never rendered as markup) -->
+          <StackPanel IsVisible="{Binding HasDescription}">
+            <TextBlock Classes="section" Text="ABOUT THE JOB" />
+            <Border Classes="table" Padding="14,12">
+              <SelectableTextBlock Text="{Binding Description}" TextWrapping="Wrap" LineHeight="20" />
+            </Border>
+          </StackPanel>
+        </StackPanel>
+      </StackPanel>
+    </ScrollViewer>
+  </DockPanel>
+</Window>

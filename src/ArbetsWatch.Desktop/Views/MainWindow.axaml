@@ -17,6 +17,7 @@
     <KeyBinding Gesture="Ctrl+OemComma" Command="{Binding OpenSettingsCommand}" />
     <KeyBinding Gesture="Ctrl+L" Command="{Binding TogglePlacesCommand}" />
     <KeyBinding Gesture="Escape" Command="{Binding ClosePanelsCommand}" />
+    <KeyBinding Gesture="Ctrl+D" Command="{Binding OpenDetailsCommand}" />
   </Window.KeyBindings>
 
   <!--
@@ -201,11 +202,19 @@
                         <StackPanel Grid.Column="1" Margin="10,1,0,0" Spacing="2" VerticalAlignment="Top">
                           <TextBlock Classes="secondary" Text="{Binding PublishedText}" HorizontalAlignment="Right"
                                      ToolTip.Tip="Published (Swedish time)" />
-                          <Button Classes="icon rowlink" Command="{Binding $parent[ListBox].((vm:MainViewModel)DataContext).OpenAdCommand}"
-                                  CommandParameter="{Binding}" Focusable="False" HorizontalAlignment="Right"
-                                  ToolTip.Tip="Open on Platsbanken" AutomationProperties.Name="{Binding Title, StringFormat='Open {0} on Platsbanken'}">
-                            <PathIcon Data="{StaticResource IconOpenExternal}" />
-                          </Button>
+                          <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="2">
+                            <Button Classes="icon rowlink" Command="{Binding $parent[ListBox].((vm:MainViewModel)DataContext).OpenDetailsCommand}"
+                                    CommandParameter="{Binding}" Focusable="False"
+                                    ToolTip.Tip="Details: description, requirements and how to apply (Ctrl+D)"
+                                    AutomationProperties.Name="{Binding Title, StringFormat='Details of {0}'}">
+                              <PathIcon Data="{StaticResource IconDetails}" />
+                            </Button>
+                            <Button Classes="icon rowlink" Command="{Binding $parent[ListBox].((vm:MainViewModel)DataContext).OpenAdCommand}"
+                                    CommandParameter="{Binding}" Focusable="False"
+                                    ToolTip.Tip="Open on Platsbanken" AutomationProperties.Name="{Binding Title, StringFormat='Open {0} on Platsbanken'}">
+                              <PathIcon Data="{StaticResource IconOpenExternal}" />
+                            </Button>
+                          </StackPanel>
                         </StackPanel>
                       </Grid>
                     </Panel>

@@ -111,6 +111,15 @@ REST: `GET https://taxonomy.api.jobtechdev.se/v1/taxonomy/main/concepts?type=mun
 
 `tools/TaxonomyExport` (M1) uses GraphQL instead: `concepts(id: "i46j_HmG_v64", version: "<n>") { narrower(type: "region") { … narrower(type: "municipality") { … } } }`, so regions are found through Sweden's relations, never by a label suffix. `/main/` is a moving alias; the exporter reads `GET /v1/taxonomy/main/versions`, takes the highest `taxonomy/version` (31 on 2026-10-06), passes it as `version` to pin the query, and records it in `places.json`. Verified live: 21 regions and 290 municipalities across Sweden for version 31. Worktime concepts: Heltid `6YE1_gAC_R2G`, Deltid `947z_JGS_Uk2`. A user-supplied `all-concepts.json` export (43,695 concepts, 8.5 MB) has 290 `municipality` and 1,519 `region` concepts (most not Swedish) and **no parent relations**, so it cannot build the hierarchy; `tools/TaxonomyExport` uses the API.
 
+## Ad details (JobSearch, read on demand)
+
+`GET https://jobsearch.api.jobtechdev.se/ad/{id}` returns one ad's full record (the same shape as a JobStream ad, plus `workplace_addresses` and `workplace_model`), without a key. Checked 2026-10-07:
+
+- An unknown ID, a non-numeric ID and a removed ad (`31486671`) all return **404** `{"message":"Ad not found…"}`. No rate-limit headers were returned.
+- In 100 current Göteborg ads, `application_details.url` was set in 96 (89 `https`, 5 `http`, 2 without a scheme, e.g. `www.idealbemanning.se/…`), `email` in 8, free-text `other` in 3, `via_af` in none; 49 listed `application_contacts`.
+
+ArbetsWatch calls it only when the user opens an ad's details, stores nothing from it, and never lets it touch the cache (JobStream stays the only owner). Links are offered as buttons only when they are http(s) web pages or plain e-mail addresses (`ExternalLinks`); scheme-less `www.` values are read as https; everything else stays text. Descriptions are shown as plain text (`description.text`), never as the HTML `text_formatted`.
+
 ## Polling policy (app policy, not API guarantees)
 
 - Interval `[C − 5 min overlap, E]`, where `E = floor_to_second(now − 2 min safety lag)` is fixed before the request, and `C` is the last committed `E`.
