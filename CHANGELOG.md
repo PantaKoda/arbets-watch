@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [0.1.3] - 2026-10-07
 
 - Search: a search box under the filters (Ctrl+F) finds ads by words in the title or the description. It searches only the ads that pass your places and worktime, matches parts of words ("utvecklare" also finds "Systemutvecklare"), requires every word, and takes "quoted phrases". Esc or × clears it. Search only narrows the list; it never changes what counts as new.
 - To search descriptions, ArbetsWatch now keeps each current ad's description text locally. After updating, the next refresh downloads the full list once more (about 450 MB) to fetch them; titles are searchable straight away. The database grows accordingly (see the README).
