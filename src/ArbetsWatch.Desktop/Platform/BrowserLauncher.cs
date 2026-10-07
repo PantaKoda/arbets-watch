@@ -19,6 +19,24 @@ public sealed class BrowserLauncher(ILogger<BrowserLauncher> logger)
         return Launch(url);
     }
 
+    /// <summary>
+    /// Opens a link published in an ad (apply page, employer site) or a <c>mailto:</c> address. Only http(s) and
+    /// mailto are accepted; ads are untrusted, so everything else is refused.
+    /// </summary>
+    public bool OpenExternal(Uri url)
+    {
+        var allowed = url.Scheme == Uri.UriSchemeMailto
+            ? ArbetsWatch.Core.Details.ExternalLinks.Email(url.GetComponents(UriComponents.UserInfo | UriComponents.Host, UriFormat.Unescaped)) is not null
+            : ArbetsWatch.Core.Details.ExternalLinks.WebLink(url.AbsoluteUri) is not null;
+        if (!allowed)
+        {
+            logger.LogWarning("Refused to open a link that is not a web page or e-mail address");
+            return false;
+        }
+
+        return Launch(url);
+    }
+
     /// <summary>Opens a page on github.com (the release page in the update window).</summary>
     public bool OpenGitHub(Uri url)
     {

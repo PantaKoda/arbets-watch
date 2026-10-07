@@ -1,3 +1,4 @@
+using ArbetsWatch.Core.Details;
 using ArbetsWatch.Core.Places;
 using ArbetsWatch.Core.Platform;
 using ArbetsWatch.Core.Settings;
@@ -34,7 +35,10 @@ public sealed class AppShell : IShell, IDisposable
     private readonly SingleInstance _instance;
     private readonly ILoggerFactory _loggers;
     private readonly UpdateService _updates;
+    private readonly IAdDetailsSource _details;
     private UpdateWindow? _updateWindow;
+    private AdDetailsWindow? _detailsWindow;
+    private AdDetailsViewModel? _detailsViewModel;
     private readonly ILogger<AppShell> _logger;
     private readonly TrayService _tray;
     private readonly DispatcherTimer _saveTimer;
@@ -61,9 +65,11 @@ public sealed class AppShell : IShell, IDisposable
         AppPreferences preferences,
         SingleInstance instance,
         UpdateService updates,
+        IAdDetailsSource details,
         ILoggerFactory loggers)
     {
         _updates = updates;
+        _details = details;
         _paths = paths;
         _store = store;
         _coordinator = coordinator;
@@ -235,6 +241,41 @@ public sealed class AppShell : IShell, IDisposable
         {
             _ = _updates.CheckNowAsync();
         }
+    }
+
+    /// <summary>One details window, reused: opening another ad's details replaces its content.</summary>
+    public void ShowAdDetails(AdRowViewModel row)
+    {
+        if (_viewModel is null)
+        {
+            return;
+        }
+
+        if (_detailsWindow is null || _detailsViewModel is null)
+        {
+            var viewModel = new AdDetailsViewModel(_details, new BrowserLauncher(_loggers.CreateLogger<BrowserLauncher>()),
+                _viewModel.MarkRowReadAsync, TimeProvider.System, _loggers.CreateLogger<AdDetailsViewModel>());
+            var window = new AdDetailsWindow { DataContext = viewModel, Icon = _window?.Icon };
+            window.Classes.Set("reduce-motion", !SystemVisuals.AnimationsEnabled);
+            window.Closed += (_, _) =>
+            {
+                _detailsWindow = null;
+                _detailsViewModel = null;
+            };
+            _detailsWindow = window;
+            _detailsViewModel = viewModel;
+            if (_window is { IsVisible: true } owner)
+            {
+                window.Show(owner);
+            }
+            else
+            {
+                window.Show();
+            }
+        }
+
+        _detailsWindow.Activate();
+        _ = _detailsViewModel.LoadAsync(row);
     }
 
     public void SavePreferences(AppPreferences preferences)

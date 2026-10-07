@@ -1,4 +1,5 @@
 using System.Reflection;
+using ArbetsWatch.Core.Details;
 using ArbetsWatch.Core.Places;
 using ArbetsWatch.Core.Platform;
 using ArbetsWatch.Core.Settings;
@@ -92,7 +93,11 @@ internal static class Program
             using var updates = new UpdateService(releases, releases.ReleasesPage, paths.DataDirectory, install, new ProcessLauncher(), time,
                 new UpdateOptions(), loggers.CreateLogger<UpdateService>());
 
-            using var shell = new AppShell(paths, store, coordinator, PlaceCatalog.LoadBundled(), preferences, instance, updates, loggers);
+            // Ad details are read on demand from JobSearch; nothing from it is stored.
+            using var detailsHttp = JobSearchClient.CreateHttpClient($"ArbetsWatch/{version.Split('+')[0]}");
+            var details = new JobSearchClient(detailsHttp);
+
+            using var shell = new AppShell(paths, store, coordinator, PlaceCatalog.LoadBundled(), preferences, instance, updates, details, loggers);
             if (opened.QuarantinedTo is not null)
             {
                 shell.SetStartupMessage("The saved data couldn't be read, so ArbetsWatch started fresh and downloads the ads again. The old file was kept next to the new one.");
