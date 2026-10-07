@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [0.1.1] - 2026-10-07
 
 - Accent colors, as in Repo Watch: Settings → Appearance → Accent offers Station cyan (default), Nebula violet, Ion blue and Plasma magenta. The accent colors the frame, highlights and selected chips; status colors never change.
 - Fixed: a database created by a pre-release build could fail every refresh ("NOT NULL constraint failed: ad_state.first_seen_utc"). It is now migrated (schema 2) on start, keeping all saved ads and read state.
