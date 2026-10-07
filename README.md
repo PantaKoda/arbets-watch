@@ -11,6 +11,7 @@ A Windows-first desktop app that keeps a local, filterable view of the job ads c
 - On first start, ArbetsWatch downloads the complete JobStream snapshot (≈ 450 MB, about a minute on a fast connection) and keeps a compact summary of every current ad in a local SQLite database.
 - It then polls the JobStream change feed (default every 5 minutes) and applies new, changed and removed ads.
 - Filtering by län, kommun and worktime (Heltid, Deltid, not specified) happens locally, so changing filters is instant and works offline.
+- Search (Ctrl+F) looks for words in the titles and descriptions of the ads that pass those filters, also locally. For that, the description text of every current ad is kept too, which makes the database a few hundred MB rather than about 30 MB.
 - "New" means newly detected by this monitor while it was running, not necessarily newly published.
 
 No account or API key is needed. Data stays on your PC in `%LOCALAPPDATA%\ArbetsWatch`.
@@ -26,7 +27,8 @@ The ZIP is self-contained (the .NET runtime is included) and needs no administra
 - **First start** downloads all current ads; the window shows progress. Later starts open instantly with the saved list.
 - **Close** (or the – button) hides the window to the notification area; monitoring continues. **Quit** is in the tray menu and in Settings.
 - **Details:** the (i) button on a row, or Ctrl+D on the selected row, opens the ad's details: how to apply (with the employer's application link or e-mail when the ad has one), the key facts, qualifications, contacts and the full description. They are fetched from Arbetsförmedlingen when you open them.
-- **Keys:** F5 refresh, Ctrl+L places, Ctrl+, settings, Enter opens the selected ad on Platsbanken, Ctrl+D opens its details, Esc closes a panel or the details window.
+- **Search:** type in the box under the filters. Every word must appear in the title or description, parts of words count ("utvecklare" also finds "Systemutvecklare"), and "quotes" keep a phrase together. Your places and worktime still apply; Esc clears the search.
+- **Keys:** F5 refresh, Ctrl+F search, Ctrl+L places, Ctrl+, settings, Enter opens the selected ad on Platsbanken, Ctrl+D opens its details, Esc closes a panel or the details window, or clears the search.
 - **Updates:** ArbetsWatch checks this repository's releases daily. When there is a newer one, an **UPDATE** button appears in the header; it shows what changed and installs it after checking the published SHA-256 (your data is kept; the previous version stays next to the app folder). Details: [docs/updates.md](docs/updates.md).
 - **Remove:** quit, delete the app folder and `%LOCALAPPDATA%\ArbetsWatch` (database, preferences, logs).
 

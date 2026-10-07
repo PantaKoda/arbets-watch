@@ -96,6 +96,23 @@ internal static class Schema
         CREATE INDEX ix_state_unread ON ad_state (unread) WHERE unread = 1;
         CREATE INDEX ix_state_inactive ON ad_state (inactive_since_utc) WHERE inactive_since_utc IS NOT NULL;
         """,
+
+        // 3: text search. ad_text holds the folded title + description of each current ad (TextSearch.Body); it
+        //    lives and dies with its ad_summary row. Existing caches have no descriptions yet, so the next refresh
+        //    downloads a snapshot (last_snapshot_utc NULL); titles are searchable at once (AdStore.Initialize).
+        """
+        CREATE TABLE ad_text (
+            id TEXT NOT NULL PRIMARY KEY,
+            body TEXT NOT NULL
+        );
+        CREATE TRIGGER tr_summary_delete_text AFTER DELETE ON ad_summary
+        BEGIN
+            DELETE FROM ad_text WHERE id = old.id;
+        END;
+        DELETE FROM snapshot_staging;
+        ALTER TABLE snapshot_staging ADD COLUMN body TEXT;
+        UPDATE sync_state SET last_snapshot_utc = NULL;
+        """,
     ];
 
     public static int LatestVersion => Migrations.Length;

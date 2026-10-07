@@ -6,7 +6,8 @@ namespace ArbetsWatch.Core.Ads;
 
 /// <summary>
 /// Projects one JSON-lines record from JobStream into a compact <see cref="SourceRecord"/>.
-/// Descriptions and other large fields are never materialized beyond the per-line document.
+/// Other large fields are never materialized beyond the per-line document; the plain-text description is kept
+/// for search.
 /// </summary>
 public static class AdRecordParser
 {
@@ -73,7 +74,10 @@ public static class AdRecordParser
             LastPublicationUtc: SwedishTime.ParseLocal(lastPublication),
             LastPublicationRaw: lastPublication,
             // timestamp is epoch milliseconds (UTC). Without it the order is unknown, so the state is applied.
-            ChangedUtc: Timestamp(ad) ?? unorderedFallbackUtc);
+            ChangedUtc: Timestamp(ad) ?? unorderedFallbackUtc)
+        {
+            Description = Str(Obj(ad, "description"), "text"),
+        };
     }
 
     private static string Id(JsonElement ad)

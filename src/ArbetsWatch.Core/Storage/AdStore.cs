@@ -61,6 +61,57 @@ public sealed class AdStore : IDisposable
         }
 
         Schema.Migrate(connection);
+        EnableIncrementalVacuum(connection);
+        BackfillSearchText(connection);
+    }
+
+    /// <summary>
+    /// Lets <see cref="ReclaimSpaceAsync"/> hand freed pages back to the file system. Each snapshot passes through
+    /// staging (descriptions included, well over 100 MB), so without it the file would keep that much free space.
+    /// Switching an existing database over needs one VACUUM.
+    /// </summary>
+    private static void EnableIncrementalVacuum(SqliteConnection connection)
+    {
+        if (Convert.ToInt64(Scalar(connection, null, "PRAGMA auto_vacuum"), System.Globalization.CultureInfo.InvariantCulture) == 2)
+        {
+            return;
+        }
+
+        Execute(connection, null, "PRAGMA auto_vacuum = INCREMENTAL;");
+        Execute(connection, null, "VACUUM;");
+        Execute(connection, null, "PRAGMA wal_checkpoint(TRUNCATE);"); // VACUUM went through the log
+    }
+
+    /// <summary>
+    /// Every current ad has a search row. Caches from before search (schema 3) get their titles here, so titles are
+    /// searchable at once; descriptions arrive with the next snapshot.
+    /// </summary>
+    private static void BackfillSearchText(SqliteConnection connection)
+    {
+        using var transaction = connection.BeginTransaction();
+        var missing = new List<(string Id, string Headline)>();
+        using (var select = connection.CreateCommand())
+        {
+            select.Transaction = transaction;
+            select.CommandText = "SELECT s.id, s.headline FROM ad_summary s WHERE NOT EXISTS (SELECT 1 FROM ad_text t WHERE t.id = s.id)";
+            using var reader = select.ExecuteReader();
+            while (reader.Read())
+            {
+                missing.Add((reader.GetString(0), reader.GetString(1)));
+            }
+        }
+
+        if (missing.Count > 0)
+        {
+            using var insert = Command(connection, transaction, "INSERT INTO ad_text (id, body) VALUES ($id, $body)", "$id", "$body");
+            foreach (var (id, headline) in missing)
+            {
+                Bind(insert, ("$id", id), ("$body", TextSearch.Body(headline, null)));
+                insert.ExecuteNonQuery();
+            }
+        }
+
+        transaction.Commit();
     }
 
     // ---- Sync state -------------------------------------------------------------------------------------
@@ -116,6 +167,7 @@ public sealed class AdStore : IDisposable
                 cancellationToken.ThrowIfCancellationRequested();
                 BindSummary(command, ad);
                 command.Parameters["$removed"].Value = 0;
+                command.Parameters["$body"].Value = TextSearch.Body(ad.Headline, ad.Description);
                 command.ExecuteNonQuery();
             }
 
@@ -138,10 +190,12 @@ public sealed class AdStore : IDisposable
                     case AdSummary ad:
                         BindSummary(command, ad);
                         command.Parameters["$removed"].Value = 0;
+                        command.Parameters["$body"].Value = TextSearch.Body(ad.Headline, ad.Description);
                         break;
                     case AdRemoval removal:
                         BindSummary(command, Tombstone(removal));
                         command.Parameters["$removed"].Value = 1;
+                        command.Parameters["$body"].Value = DBNull.Value;
                         break;
                     default:
                         continue;
@@ -254,6 +308,12 @@ public sealed class AdStore : IDisposable
                 WHERE s.removed = 0
                 ON CONFLICT (id) DO UPDATE SET {UpdateAssignments()}
                 """);
+            Execute(connection, transaction, """
+                INSERT INTO ad_text (id, body)
+                SELECT s.id, COALESCE(s.body, '') FROM snapshot_staging s
+                WHERE s.removed = 0
+                ON CONFLICT (id) DO UPDATE SET body = excluded.body
+                """);
 
             Execute(connection, transaction, """
                 DELETE FROM ad_summary
@@ -276,19 +336,53 @@ public sealed class AdStore : IDisposable
             return counters.ToResult();
         }, cancellationToken);
 
+    /// <summary>
+    /// Returns free pages (left by a cleared snapshot staging) to the file system and truncates the write-ahead
+    /// log. Housekeeping only: the data is the same before and after.
+    /// </summary>
+    public async Task ReclaimSpaceAsync(CancellationToken cancellationToken = default)
+    {
+        await _writer.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            await Task.Run(() =>
+            {
+                using var connection = Connect();
+                Execute(connection, null, "PRAGMA incremental_vacuum;");
+                Execute(connection, null, "PRAGMA wal_checkpoint(TRUNCATE);");
+            }, cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            _writer.Release();
+        }
+    }
+
     // ---- Queries ----------------------------------------------------------------------------------------
 
-    /// <summary>Current ads matching the filter, newest publication first, ID as a stable tie-breaker.</summary>
-    public Task<IReadOnlyList<AdRow>> QueryAsync(AdFilter filter, DateTimeOffset now, CancellationToken cancellationToken = default) =>
+    /// <summary>
+    /// Current ads matching the filter and <paramref name="search"/> (when given), newest publication first, ID as a
+    /// stable tie-breaker.
+    /// </summary>
+    public Task<IReadOnlyList<AdRow>> QueryAsync(
+        AdFilter filter,
+        DateTimeOffset now,
+        CancellationToken cancellationToken = default,
+        TextSearch? search = null) =>
         Task.Run<IReadOnlyList<AdRow>>(() =>
         {
+            search ??= TextSearch.None;
             using var connection = Connect();
             using var command = connection.CreateCommand();
             var where = AdFilterSql.Where(filter, command, "s");
+
+            // The indexed filters narrow the rows first; only their text is scanned.
+            var join = search.IsEmpty ? string.Empty : " JOIN ad_text t ON t.id = s.id";
+            var text = search.IsEmpty ? string.Empty : $" AND {search.Where(command, "t.body")}";
             command.CommandText = $"""
                 SELECT {Prefixed("s")}, st.unread, st.first_seen_utc
-                FROM ad_summary s JOIN ad_state st ON st.id = s.id
-                WHERE ({where}) AND (s.last_publication_utc IS NULL OR s.last_publication_utc >= $now)
+                FROM ad_summary s JOIN ad_state st ON st.id = s.id{join}
+                WHERE ({where}) AND (s.last_publication_utc IS NULL OR s.last_publication_utc >= $now){text}
                 ORDER BY s.published_utc DESC, s.id DESC
                 """;
             command.Parameters.AddWithValue("$now", Ms(now));
@@ -388,7 +482,8 @@ public sealed class AdStore : IDisposable
 
             // Per connection (unlike journal_mode, which is stored in the file): safe with WAL, fewer fsyncs.
             using var pragma = connection.CreateCommand();
-            pragma.CommandText = "PRAGMA synchronous = NORMAL;";
+            // The log shrinks back after checkpoints instead of keeping its largest size (a snapshot writes 100+ MB).
+            pragma.CommandText = "PRAGMA synchronous = NORMAL; PRAGMA journal_size_limit = 67108864;";
             pragma.ExecuteNonQuery();
             return connection;
         }
@@ -445,6 +540,8 @@ public sealed class AdStore : IDisposable
             INSERT INTO ad_summary ({SummaryColumnList}) VALUES ({ParameterList()})
             ON CONFLICT (id) DO UPDATE SET {UpdateAssignments()}
             """, SummaryParameters());
+        using var upsertText = Command(connection, transaction,
+            "INSERT INTO ad_text (id, body) VALUES ($id, $body) ON CONFLICT (id) DO UPDATE SET body = excluded.body", "$id", "$body");
         using var deleteSummary = Command(connection, transaction, "DELETE FROM ad_summary WHERE id = $id", "$id");
         using var insertState = Command(connection, transaction, """
             INSERT INTO ad_state (id, first_seen_utc, unread, changed_utc, changed_kind, inactive_since_utc, inactive_reason)
@@ -494,6 +591,8 @@ public sealed class AdStore : IDisposable
                 case AdSummary ad:
                     BindSummary(upsertSummary, ad);
                     upsertSummary.ExecuteNonQuery();
+                    Bind(upsertText, ("$id", ad.Id), ("$body", TextSearch.Body(ad.Headline, ad.Description)));
+                    upsertText.ExecuteNonQuery();
 
                     // "New" is decided on the first sighting as an ad; an earlier removal-only row doesn't count.
                     var unread = !seenAsAd && unreadAllowed && AdMatcher.Matches(filter, ad) && !ad.IsExpiredAt(FromMs(nowMs));
@@ -580,11 +679,11 @@ public sealed class AdStore : IDisposable
 
     private static SqliteCommand StagingUpsert(SqliteConnection connection, SqliteTransaction transaction) =>
         Command(connection, transaction, $"""
-            INSERT INTO snapshot_staging ({SummaryColumnList}, removed) VALUES ({ParameterList()}, $removed)
-            ON CONFLICT (id) DO UPDATE SET {UpdateAssignments()}, removed = excluded.removed
+            INSERT INTO snapshot_staging ({SummaryColumnList}, removed, body) VALUES ({ParameterList()}, $removed, $body)
+            ON CONFLICT (id) DO UPDATE SET {UpdateAssignments()}, removed = excluded.removed, body = excluded.body
             WHERE NOT ((excluded.removed = 0 AND snapshot_staging.removed = 0 AND excluded.changed_utc < snapshot_staging.changed_utc)
                     OR ((excluded.removed = 1 OR snapshot_staging.removed = 1) AND excluded.changed_utc / 1000 < snapshot_staging.changed_utc / 1000))
-            """, [.. SummaryParameters(), "$removed"]);
+            """, [.. SummaryParameters(), "$removed", "$body"]);
 
     private static AdSummary Tombstone(AdRemoval removal) =>
         new(removal.Id, string.Empty, null, null, removal.CountryId, removal.RegionId, null, removal.MunicipalityId, null,

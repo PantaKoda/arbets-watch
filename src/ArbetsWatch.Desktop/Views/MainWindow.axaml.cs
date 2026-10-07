@@ -18,6 +18,7 @@ public sealed partial class MainWindow : Window
         AdList.AddHandler(DoubleTappedEvent, OnAdActivated);
         AdList.AddHandler(KeyDownEvent, OnAdListKeyDown, RoutingStrategies.Tunnel);
         AdList.TemplateApplied += (_, _) => AttachScroll();
+        AddHandler(KeyDownEvent, OnWindowKeyDown, RoutingStrategies.Tunnel);
         DataContextChanged += (_, _) =>
         {
             if (ViewModel is { } vm)
@@ -63,6 +64,17 @@ public sealed partial class MainWindow : Window
             source.FindAncestorOfType<Button>(includeSelf: true) is null)
         {
             ViewModel?.OpenAdCommand.Execute(row);
+        }
+    }
+
+    // Ctrl+F jumps to the ad search, ready to type over.
+    private void OnWindowKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.F && e.KeyModifiers == KeyModifiers.Control && AdSearch.IsEffectivelyVisible)
+        {
+            AdSearch.Focus(NavigationMethod.Tab);
+            AdSearch.SelectAll();
+            e.Handled = true;
         }
     }
 

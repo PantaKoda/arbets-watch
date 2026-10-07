@@ -34,6 +34,9 @@ public sealed record AdSummary(
 {
     public override DateTimeOffset SourceChangedUtc => ChangedUtc;
 
+    /// <summary>The plain-text description (<c>description.text</c>). Only its searchable form is stored.</summary>
+    public string? Description { get; init; }
+
     /// <summary>An ad stops being published once its last publication instant has passed.</summary>
     public bool IsExpiredAt(DateTimeOffset now) => LastPublicationUtc is { } last && last < now;
 }
