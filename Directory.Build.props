@@ -15,7 +15,7 @@
 
     <Company>ArbetsWatch</Company>
     <Product>ArbetsWatch</Product>
-    <Version>0.1.1</Version>
+    <Version>0.1.2</Version>
   </PropertyGroup>
 
   <!-- CI systems set one of these; enables deterministic source paths. -->

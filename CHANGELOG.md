@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [0.1.2] - 2026-10-07
 
 - Ad details: a new button next to "Open on Platsbanken" in each row (or Ctrl+D) opens a window with the ad organised into tables: how to apply (the employer's application link or e-mail, reference and instructions when the ad has them), the job (employer, worktime, employment, salary, address, deadline with days left, experience, driving licence), qualifications marked Required or Merit, contacts, and the full description. Details are fetched when you open them and never stored; viewing them marks the ad read.
 
