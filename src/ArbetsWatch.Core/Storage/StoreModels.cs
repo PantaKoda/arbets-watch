@@ -10,7 +10,14 @@ public sealed record SyncState(
     int TimeAdapterVersion);
 
 /// <summary>An ad as shown in the list: its summary plus this monitor's read state.</summary>
-public sealed record AdRow(AdSummary Ad, bool Unread, DateTimeOffset FirstSeenUtc);
+public sealed record AdRow(AdSummary Ad, bool Unread, DateTimeOffset FirstSeenUtc)
+{
+    /// <summary>The user saved this ad.</summary>
+    public bool IsSaved { get; init; }
+
+    /// <summary>False for a saved ad that Platsbanken no longer publishes (removed or expired).</summary>
+    public bool IsPublished { get; init; } = true;
+}
 
 /// <summary>What one committed batch or snapshot changed.</summary>
 public sealed record ApplyResult(int Applied, int Stale, int NewUnread, int Removed, int Expired, int Absent, int Pruned)

@@ -32,6 +32,7 @@
           <SolidColorBrush x:Key="WidgetSurfaceBrush" Color="#F5F9FD" />
           <SolidColorBrush x:Key="FullTimeBrush" Color="#0E8A5F" />
           <SolidColorBrush x:Key="PartTimeBrush" Color="#8A4FD1" />
+          <SolidColorBrush x:Key="StarBrush" Color="#C98A00" />
         </ResourceDictionary>
         <ResourceDictionary x:Key="Dark">
           <SolidColorBrush x:Key="StatusSuccessBrush" Color="#3DFFA2" />
@@ -54,6 +55,7 @@
           <SolidColorBrush x:Key="WidgetSurfaceBrush" Color="#0B1322" />
           <SolidColorBrush x:Key="FullTimeBrush" Color="#3DFFA2" />
           <SolidColorBrush x:Key="PartTimeBrush" Color="#C49BFF" />
+          <SolidColorBrush x:Key="StarBrush" Color="#FFC940" />
         </ResourceDictionary>
       </ResourceDictionary.ThemeDictionaries>
 
@@ -75,6 +77,8 @@
       <StreamGeometry x:Key="IconDetails">M11 7h2v2h-2zm0 4h2v6h-2zm1-9C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z</StreamGeometry>
       <StreamGeometry x:Key="IconSearch">M15.5 14h-.79l-.28-.27A6.47 6.47 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z</StreamGeometry>
       <StreamGeometry x:Key="IconClose">M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z</StreamGeometry>
+      <StreamGeometry x:Key="IconStar">M12 17.27 18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z</StreamGeometry>
+      <StreamGeometry x:Key="IconStarOutline">M22 9.24l-7.19-.62L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21 12 17.27 18.18 21l-1.63-7.03L22 9.24zM12 15.4l-3.76 2.27 1-4.28-3.32-2.88 4.38-.38L12 6.1l1.71 4.04 4.38.38-3.32 2.88 1 4.28L12 15.4z</StreamGeometry>
       <StreamGeometry x:Key="IconArrowUp">M4 12l1.41 1.41L11 7.83V20h2V7.83l5.58 5.59L20 12l-8-8-8 8z</StreamGeometry>
     </ResourceDictionary>
   </Application.Resources>
@@ -176,6 +180,33 @@
       <Setter Property="Foreground" Value="{DynamicResource PartTimeBrush}" />
     </Style>
 
+    <Style Selector="Border.chip.gone">
+      <Setter Property="BorderBrush" Value="{DynamicResource StatusWarningBrush}" />
+    </Style>
+    <Style Selector="Border.chip.gone TextBlock">
+      <Setter Property="Foreground" Value="{DynamicResource StatusWarningBrush}" />
+    </Style>
+
+    <!-- Tabs above the filters: All ads / Saved. -->
+    <Style Selector="Button.tab">
+      <Setter Property="MinHeight" Value="26" />
+      <Setter Property="Padding" Value="11,3" />
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="CornerRadius" Value="13" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="BorderBrush" Value="Transparent" />
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Foreground" Value="{DynamicResource HudDimBrush}" />
+    </Style>
+    <Style Selector="Button.tab.selected">
+      <Setter Property="BorderBrush" Value="{DynamicResource HudFrameBrush}" />
+      <Setter Property="Background" Value="{DynamicResource PanelBrush}" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+    <Style Selector="Button.tab.selected TextBlock">
+      <Setter Property="Foreground" Value="{DynamicResource HudAccentBrush}" />
+    </Style>
+
     <!-- Unread: a small accent dot by the title. -->
     <Style Selector="Ellipse.unread">
       <Setter Property="Fill" Value="{DynamicResource HudAccentBrush}" />
@@ -222,6 +253,11 @@
     </Style>
     <Style Selector="ListBoxItem:pointerover Button.rowlink, ListBoxItem:selected Button.rowlink">
       <Setter Property="Foreground" Value="{DynamicResource HudAccentBrush}" />
+    </Style>
+
+    <!-- Saved: the row's star is filled and gold, whatever the accent. -->
+    <Style Selector="Button.star.saved, ListBoxItem:pointerover Button.star.saved, ListBoxItem:selected Button.star.saved">
+      <Setter Property="Foreground" Value="{DynamicResource StarBrush}" />
     </Style>
 
     <Style Selector="TextBlock.secondary">

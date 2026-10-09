@@ -18,6 +18,7 @@
     <KeyBinding Gesture="Ctrl+L" Command="{Binding TogglePlacesCommand}" />
     <KeyBinding Gesture="Escape" Command="{Binding ClosePanelsCommand}" />
     <KeyBinding Gesture="Ctrl+D" Command="{Binding OpenDetailsCommand}" />
+    <KeyBinding Gesture="Ctrl+S" Command="{Binding ToggleSaveCommand}" />
   </Window.KeyBindings>
 
   <!--
@@ -77,8 +78,24 @@
             <ProgressBar Classes="scan" IsVisible="{Binding ShowActivity}" />
           </Panel>
 
+          <!-- Tabs: the filtered list, or every saved ad. -->
+          <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="4" Margin="12,0,12,8">
+            <Button Classes="tab" Classes.selected="{Binding !IsSavedView}" Command="{Binding ShowAllAdsCommand}"
+                    ToolTip.Tip="The ads in your places and worktime" AutomationProperties.Name="All ads">
+              <TextBlock Text="All ads" />
+            </Button>
+            <Button Classes="tab" Classes.selected="{Binding IsSavedView}" Command="{Binding ShowSavedCommand}"
+                    ToolTip.Tip="Ads you starred; they stay here until you remove them"
+                    AutomationProperties.Name="{Binding SavedTabText}">
+              <StackPanel Orientation="Horizontal" Spacing="5">
+                <PathIcon Data="{StaticResource IconStar}" Width="11" Height="11" Foreground="{DynamicResource StarBrush}" />
+                <TextBlock Text="{Binding SavedTabText}" />
+              </StackPanel>
+            </Button>
+          </StackPanel>
+
           <!-- Filter bar: places and worktime. -->
-          <Grid DockPanel.Dock="Top" Classes="filterbar" ColumnDefinitions="*,Auto,Auto,Auto" ColumnSpacing="6" Margin="12,0,12,8">
+          <Grid DockPanel.Dock="Top" Classes="filterbar" IsVisible="{Binding !IsSavedView}" ColumnDefinitions="*,Auto,Auto,Auto" ColumnSpacing="6" Margin="12,0,12,8">
             <Button Name="PlacesButton" Command="{Binding TogglePlacesCommand}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
                     ToolTip.Tip="Choose län and kommuner (Ctrl+L)" AutomationProperties.Name="{Binding PlacesSummary, StringFormat='Places: {0}'}">
               <Grid ColumnDefinitions="Auto,*" ColumnSpacing="6">
@@ -95,7 +112,7 @@
           </Grid>
 
           <!-- Search: titles and descriptions of the ads that pass the filters above. -->
-          <TextBox Name="AdSearch" DockPanel.Dock="Top" Classes="search adsearch" Margin="12,0,12,8"
+          <TextBox Name="AdSearch" DockPanel.Dock="Top" Classes="search adsearch" Margin="12,0,12,8" IsVisible="{Binding !IsSavedView}"
                    Text="{Binding AdSearchText}" MaxLength="200"
                    PlaceholderText="Search titles and descriptions (Ctrl+F)"
                    ToolTip.Tip="Every word must appear; use &quot;quotes&quot; for a phrase. Your places and worktime still apply."
@@ -191,6 +208,12 @@
               <Button Content="Clear search" Command="{Binding ClearSearchCommand}" HorizontalAlignment="Left" />
             </StackPanel>
 
+            <StackPanel IsVisible="{Binding ShowNoSaved}" Margin="20" Spacing="10" VerticalAlignment="Center">
+              <TextBlock Classes="heading" Text="No saved ads yet" />
+              <TextBlock TextWrapping="Wrap" Text="Click the star on an ad (or press Ctrl+S) to keep it here. Saved ads stay until you remove them, even after Platsbanken takes them down." />
+              <Button Content="Back to all ads" Command="{Binding ShowAllAdsCommand}" HorizontalAlignment="Left" />
+            </StackPanel>
+
             <!-- The list. Updates arriving while you are scrolled down wait behind the pill at the top. -->
             <Grid RowDefinitions="Auto,*" IsVisible="{Binding ShowList}">
               <Button Classes="pill" Command="{Binding ShowHeldCommand}" IsVisible="{Binding HasHeldUpdates}"
@@ -223,12 +246,25 @@
                             <Border Classes="chip" IsVisible="{Binding IsGone}">
                               <TextBlock Text="No longer listed here" />
                             </Border>
+                            <Border Classes="chip gone" IsVisible="{Binding !IsPublished}"
+                                    ToolTip.Tip="Platsbanken no longer publishes this ad; it stays saved until you remove it">
+                              <TextBlock Text="No longer published" />
+                            </Border>
                           </WrapPanel>
                         </StackPanel>
                         <StackPanel Grid.Column="1" Margin="10,1,0,0" Spacing="2" VerticalAlignment="Top">
                           <TextBlock Classes="secondary" Text="{Binding PublishedText}" HorizontalAlignment="Right"
                                      ToolTip.Tip="Published (Swedish time)" />
                           <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="2">
+                            <Button Classes="icon rowlink star" Classes.saved="{Binding IsSaved}"
+                                    Command="{Binding $parent[ListBox].((vm:MainViewModel)DataContext).ToggleSaveCommand}"
+                                    CommandParameter="{Binding}" Focusable="False"
+                                    ToolTip.Tip="{Binding SaveTip}" AutomationProperties.Name="{Binding SaveName}">
+                              <Panel>
+                                <PathIcon Data="{StaticResource IconStarOutline}" IsVisible="{Binding !IsSaved}" />
+                                <PathIcon Data="{StaticResource IconStar}" IsVisible="{Binding IsSaved}" />
+                              </Panel>
+                            </Button>
                             <Button Classes="icon rowlink" Command="{Binding $parent[ListBox].((vm:MainViewModel)DataContext).OpenDetailsCommand}"
                                     CommandParameter="{Binding}" Focusable="False"
                                     ToolTip.Tip="Details: description, requirements and how to apply (Ctrl+D)"

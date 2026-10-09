@@ -168,6 +168,9 @@ public sealed class SearchTests
             connection.Open();
             using var downgrade = connection.CreateCommand();
             downgrade.CommandText = """
+                DROP TRIGGER tr_summary_update_saved;
+                DROP TRIGGER tr_summary_insert_saved;
+                DROP TABLE saved_ad;
                 DROP TRIGGER tr_summary_delete_text;
                 DROP TABLE ad_text;
                 ALTER TABLE snapshot_staging DROP COLUMN body;

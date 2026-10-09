@@ -40,6 +40,15 @@ public sealed partial class AdRowViewModel : ObservableObject
     [ObservableProperty]
     public partial bool IsGone { get; set; }
 
+    /// <summary>On the user's saved list (shown as a filled star).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(SaveTip), nameof(SaveName), nameof(AccessibleName))]
+    public partial bool IsSaved { get; set; }
+
+    /// <summary>False for a saved ad that Platsbanken no longer publishes.</summary>
+    [ObservableProperty]
+    public partial bool IsPublished { get; set; } = true;
+
     public AdRowViewModel(AdRow row, DateTimeOffset now)
     {
         Id = row.Ad.Id;
@@ -50,7 +59,12 @@ public sealed partial class AdRowViewModel : ObservableObject
 
     public Uri? Url { get; private set; }
 
-    public string AccessibleName => $"{Title}, {Employer}, {Place}, {Worktime}, published {PublishedText}{(Unread ? ", new" : string.Empty)}";
+    public string AccessibleName =>
+        $"{Title}, {Employer}, {Place}, {Worktime}, published {PublishedText}{(Unread ? ", new" : string.Empty)}{(IsSaved ? ", saved" : string.Empty)}";
+
+    public string SaveTip => IsSaved ? "Remove from saved ads (Ctrl+S)" : "Save this ad (Ctrl+S)";
+
+    public string SaveName => IsSaved ? $"Remove {Title} from saved ads" : $"Save {Title}";
 
     public void Update(AdRow row, DateTimeOffset now)
     {
@@ -64,8 +78,11 @@ public sealed partial class AdRowViewModel : ObservableObject
         IsPartTime = category == WorktimeSet.PartTime;
         PublishedText = DisplayText.Published(ad.PublishedUtc, now);
         Unread = row.Unread;
+        IsSaved = row.IsSaved;
+        IsPublished = row.IsPublished;
         IsGone = false;
         Url = AdLinkPolicy.Resolve(ad.Id, ad.Url);
         OnPropertyChanged(nameof(AccessibleName));
+        OnPropertyChanged(nameof(SaveName));
     }
 }

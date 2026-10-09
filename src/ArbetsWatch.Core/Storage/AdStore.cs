@@ -380,7 +380,7 @@ public sealed class AdStore : IDisposable
             var join = search.IsEmpty ? string.Empty : " JOIN ad_text t ON t.id = s.id";
             var text = search.IsEmpty ? string.Empty : $" AND {search.Where(command, "t.body")}";
             command.CommandText = $"""
-                SELECT {Prefixed("s")}, st.unread, st.first_seen_utc
+                SELECT {Prefixed("s")}, st.unread, st.first_seen_utc, EXISTS (SELECT 1 FROM saved_ad sv WHERE sv.id = s.id)
                 FROM ad_summary s JOIN ad_state st ON st.id = s.id{join}
                 WHERE ({where}) AND (s.last_publication_utc IS NULL OR s.last_publication_utc >= $now){text}
                 ORDER BY s.published_utc DESC, s.id DESC
@@ -392,7 +392,10 @@ public sealed class AdStore : IDisposable
             while (reader.Read())
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                rows.Add(new AdRow(ReadSummary(reader), reader.GetInt64(16) == 1, reader.IsDBNull(17) ? now : FromMs(reader.GetInt64(17))));
+                rows.Add(new AdRow(ReadSummary(reader), reader.GetInt64(16) == 1, reader.IsDBNull(17) ? now : FromMs(reader.GetInt64(17)))
+                {
+                    IsSaved = reader.GetInt64(18) == 1,
+                });
             }
 
             return rows;
@@ -405,6 +408,75 @@ public sealed class AdStore : IDisposable
             return Convert.ToInt32(Scalar(connection, null,
                 "SELECT COUNT(*) FROM ad_summary WHERE last_publication_utc IS NULL OR last_publication_utc >= $now",
                 ("$now", Ms(now))), System.Globalization.CultureInfo.InvariantCulture);
+        }, cancellationToken);
+
+    // ---- Saved ads --------------------------------------------------------------------------------------
+
+    /// <summary>
+    /// Saves a current ad: its summary is copied, so it stays listed after Platsbanken removes it. False when the ad
+    /// is no longer in the cache. Saving twice keeps the first save time.
+    /// </summary>
+    public Task<bool> SaveAsync(string id, DateTimeOffset now, CancellationToken cancellationToken = default) =>
+        WriteAsync((connection, transaction) =>
+        {
+            if (Count(connection, transaction, "SELECT COUNT(*) FROM ad_summary WHERE id = $id", ("$id", id)) == 0)
+            {
+                return false;
+            }
+
+            Execute(connection, transaction, $"""
+                INSERT INTO saved_ad ({SummaryColumnList}, saved_utc)
+                SELECT {SummaryColumnList}, $now FROM ad_summary WHERE id = $id
+                ON CONFLICT (id) DO NOTHING
+                """, ("$id", id), ("$now", Ms(now)));
+            return true;
+        }, cancellationToken);
+
+    /// <summary>Removes an ad from the saved list (the ad itself stays in the cache while it is published).</summary>
+    public Task<bool> UnsaveAsync(string id, CancellationToken cancellationToken = default) =>
+        WriteAsync((connection, transaction) =>
+            Execute(connection, transaction, "DELETE FROM saved_ad WHERE id = $id", ("$id", id)) > 0,
+            cancellationToken);
+
+    /// <summary>
+    /// Every saved ad, most recently saved first, whatever the filters say. <see cref="AdRow.IsPublished"/> is false
+    /// once the ad was removed or has expired; <see cref="AdRow.FirstSeenUtc"/> is the save time.
+    /// </summary>
+    public Task<IReadOnlyList<AdRow>> QuerySavedAsync(DateTimeOffset now, CancellationToken cancellationToken = default) =>
+        Task.Run<IReadOnlyList<AdRow>>(() =>
+        {
+            using var connection = Connect();
+            using var command = connection.CreateCommand();
+            command.CommandText = $"""
+                SELECT {Prefixed("sv")}, COALESCE(st.unread, 0), sv.saved_utc,
+                       a.id IS NOT NULL AND (a.last_publication_utc IS NULL OR a.last_publication_utc >= $now)
+                FROM saved_ad sv
+                LEFT JOIN ad_state st ON st.id = sv.id
+                LEFT JOIN ad_summary a ON a.id = sv.id
+                ORDER BY sv.saved_utc DESC, sv.id DESC
+                """;
+            command.Parameters.AddWithValue("$now", Ms(now));
+
+            var rows = new List<AdRow>();
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                rows.Add(new AdRow(ReadSummary(reader), reader.GetInt64(16) == 1, FromMs(reader.GetInt64(17)))
+                {
+                    IsSaved = true,
+                    IsPublished = reader.GetInt64(18) == 1,
+                });
+            }
+
+            return rows;
+        }, cancellationToken);
+
+    public Task<int> CountSavedAsync(CancellationToken cancellationToken = default) =>
+        Task.Run(() =>
+        {
+            using var connection = Connect();
+            return (int)Count(connection, null, "SELECT COUNT(*) FROM saved_ad");
         }, cancellationToken);
 
     // ---- Read state -------------------------------------------------------------------------------------
@@ -500,7 +572,7 @@ public sealed class AdStore : IDisposable
         $"CASE WHEN $unreadAllowed = 1 AND {AdFilterSql.Where(filter, command, "s")} " +
         "AND (s.last_publication_utc IS NULL OR s.last_publication_utc >= $now) THEN 1 ELSE 0 END";
 
-    private static long Count(SqliteConnection connection, SqliteTransaction transaction, string sql, params (string Name, object? Value)[] parameters) =>
+    private static long Count(SqliteConnection connection, SqliteTransaction? transaction, string sql, params (string Name, object? Value)[] parameters) =>
         Convert.ToInt64(Scalar(connection, transaction, sql, parameters), System.Globalization.CultureInfo.InvariantCulture);
 
     private async Task<T> WriteAsync<T>(Func<SqliteConnection, SqliteTransaction, T> work, CancellationToken cancellationToken)

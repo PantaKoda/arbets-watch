@@ -28,7 +28,8 @@ The ZIP is self-contained (the .NET runtime is included) and needs no administra
 - **Close** (or the – button) hides the window to the notification area; monitoring continues. **Quit** is in the tray menu and in Settings.
 - **Details:** the (i) button on a row, or Ctrl+D on the selected row, opens the ad's details: how to apply (with the employer's application link or e-mail when the ad has one), the key facts, qualifications, contacts and the full description. They are fetched from Arbetsförmedlingen when you open them.
 - **Search:** type in the box under the filters. Every word must appear in the title or description, parts of words count ("utvecklare" also finds "Systemutvecklare"), and "quotes" keep a phrase together. Your places and worktime still apply; Esc clears the search.
-- **Keys:** F5 refresh, Ctrl+F search, Ctrl+L places, Ctrl+, settings, Enter opens the selected ad on Platsbanken, Ctrl+D opens its details, Esc closes a panel or the details window, or clears the search.
+- **Saved ads:** the star on a row (or Ctrl+S) saves the ad; saved ads have a gold star in the list and are all on the **Saved** tab, whatever the filters. Click the star again to remove one. They stay until you remove them, even after Platsbanken takes the ad down ("No longer published").
+- **Keys:** F5 refresh, Ctrl+F search, Ctrl+S save or unsave, Ctrl+L places, Ctrl+, settings, Enter opens the selected ad on Platsbanken, Ctrl+D opens its details, Esc closes a panel or the details window, or clears the search.
 - **Updates:** ArbetsWatch checks this repository's releases daily. When there is a newer one, an **UPDATE** button appears in the header; it shows what changed and installs it after checking the published SHA-256 (your data is kept; the previous version stays next to the app folder). Details: [docs/updates.md](docs/updates.md).
 - **Remove:** quit, delete the app folder and `%LOCALAPPDATA%\ArbetsWatch` (database, preferences, logs).
 
