@@ -113,6 +113,52 @@ internal static class Schema
         ALTER TABLE snapshot_staging ADD COLUMN body TEXT;
         UPDATE sync_state SET last_snapshot_utc = NULL;
         """,
+
+        // 4: saved ads. A saved ad keeps its own copy of the summary, so it stays listed (as no longer published)
+        //    after Platsbanken removes it, until the user removes it; retention never prunes it. Triggers keep the
+        //    copy in step while the ad is current.
+        """
+        CREATE TABLE saved_ad (
+            id TEXT NOT NULL PRIMARY KEY,
+            headline TEXT NOT NULL,
+            employer TEXT,
+            url TEXT,
+            country_id TEXT,
+            region_id TEXT,
+            region_label TEXT,
+            municipality_id TEXT,
+            municipality_label TEXT,
+            worktime_id TEXT,
+            worktime_label TEXT,
+            published_utc INTEGER,
+            published_raw TEXT,
+            last_publication_utc INTEGER,
+            last_publication_raw TEXT,
+            changed_utc INTEGER NOT NULL,
+            saved_utc INTEGER NOT NULL
+        );
+        CREATE INDEX ix_saved_order ON saved_ad (saved_utc DESC, id DESC);
+        CREATE TRIGGER tr_summary_update_saved AFTER UPDATE ON ad_summary
+        BEGIN
+            UPDATE saved_ad SET headline = new.headline, employer = new.employer, url = new.url, country_id = new.country_id,
+                region_id = new.region_id, region_label = new.region_label, municipality_id = new.municipality_id,
+                municipality_label = new.municipality_label, worktime_id = new.worktime_id, worktime_label = new.worktime_label,
+                published_utc = new.published_utc, published_raw = new.published_raw,
+                last_publication_utc = new.last_publication_utc, last_publication_raw = new.last_publication_raw,
+                changed_utc = new.changed_utc
+            WHERE id = new.id;
+        END;
+        CREATE TRIGGER tr_summary_insert_saved AFTER INSERT ON ad_summary
+        BEGIN
+            UPDATE saved_ad SET headline = new.headline, employer = new.employer, url = new.url, country_id = new.country_id,
+                region_id = new.region_id, region_label = new.region_label, municipality_id = new.municipality_id,
+                municipality_label = new.municipality_label, worktime_id = new.worktime_id, worktime_label = new.worktime_label,
+                published_utc = new.published_utc, published_raw = new.published_raw,
+                last_publication_utc = new.last_publication_utc, last_publication_raw = new.last_publication_raw,
+                changed_utc = new.changed_utc
+            WHERE id = new.id;
+        END;
+        """,
     ];
 
     public static int LatestVersion => Migrations.Length;

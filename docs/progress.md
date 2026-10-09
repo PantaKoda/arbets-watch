@@ -191,6 +191,22 @@ dotnet format --verify-no-changes → clean
 - Live, on copies of the real 0.1.2 database in a separate data folder (the installed app was not touched): the upgrade made "utvecklare" find compound titles at once (95 ads in the saved places); after the snapshot "kollektivavtal" (description-only) found 808 ads and "sjuksköterska natt" 9 (`docs/images/search-sjukskoterska-natt.png`); a nonsense term showed the empty state with the titles-only note; × cleared the search (3,993 ads again). Database 191 MB with an empty WAL after the snapshot.
 - Not verified live: Ctrl+F and Esc (Windows refused to bring the test window to the foreground for synthetic keys).
 
+## Saved ads (after v0.1.3)
+
+Star an ad to keep it; a Saved tab lists them all. Requested by the user on 2026-10-09.
+
+- Core: schema 4 adds `saved_ad`, a copy of the summary plus `saved_utc`. Triggers on `ad_summary` insert/update keep the copy current while the ad is published; removal, expiry, absence and the 90-day state pruning never touch it, so a saved ad stays (with its last known details) until the user removes it. `AdStore.SaveAsync` (current ads only; saving twice keeps the first time), `UnsaveAsync`, `QuerySavedAsync` (newest first, `IsPublished` from the cache and expiry), `CountSavedAsync`; `QueryAsync` rows carry `IsSaved`.
+- UI: star button on each row (outline / gold filled, Ctrl+S on the selection), "All ads | Saved (N)" tabs; the Saved tab hides the filters and search, shows "No longer published" chips, removes un-starred rows at once, and has its own empty state.
+
+Validation on Windows 11:
+
+```text
+dotnet test → 228 passed (6 new in SavedAdsTests: starring and filter independence, save order, copy follows changes and outlives removal/expiry/pruning, return after absence, unsave and restart, upgrade from schema 3)
+```
+
+- Live on a copy of the real 0.1.3 database (schema 3 → 4) in a separate data folder: starred three ads (gold stars, "Saved (3)", `docs/images/saved-stars.png`); the Saved tab listed them newest first; un-starring removed one; an ad made to expire in the copy showed "No longer published" and stayed saved; removing the rest showed the empty state.
+- Not verified live: Ctrl+S (synthetic keys can't reach a background test window, as before).
+
 ## Next step
 
 Publish `v0.1.0` (tag on `main`, Release workflow), then run the manual M6 checks (sleep/resume, DPI change, tray menu). A later `v0.1.1` exercises the in-app update against GitHub end to end.

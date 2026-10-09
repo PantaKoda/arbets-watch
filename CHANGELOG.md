@@ -1,5 +1,9 @@
 # Changelog
 
+## [Unreleased]
+
+- Saved ads: a star on every ad (or Ctrl+S on the selected one) keeps it on your saved list; the star turns gold in the main list too. A new **Saved** tab above the filters lists every saved ad, newest first, whatever your places, worktime or search. Click the star again to remove an ad. Saved ads stay until you remove them, also after Platsbanken takes them down (then marked "No longer published", with their last known details).
+
 ## [0.1.3] - 2026-10-07
 
 - Search: a search box under the filters (Ctrl+F) finds ads by words in the title or the description. It searches only the ads that pass your places and worktime, matches parts of words ("utvecklare" also finds "Systemutvecklare"), requires every word, and takes "quoted phrases". Esc or × clears it. Search only narrows the list; it never changes what counts as new.

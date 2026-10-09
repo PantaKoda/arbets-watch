@@ -132,6 +132,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         DataChanged,
         FilterChanged,
         SearchChanged,
+        ViewChanged,
         ShowHeld,
     }
 
@@ -223,6 +224,21 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     [ObservableProperty]
     public partial bool ShowNoSearchMatches { get; set; }
+
+    [ObservableProperty]
+    public partial bool ShowNoSaved { get; set; }
+
+    // ---- Saved ads --------------------------------------------------------------------------------------
+
+    /// <summary>The Saved tab is shown instead of the filtered list.</summary>
+    [ObservableProperty]
+    public partial bool IsSavedView { get; set; }
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(SavedTabText))]
+    public partial int SavedCount { get; set; }
+
+    public string SavedTabText => SavedCount > 0 ? string.Create(CultureInfo.CurrentCulture, $"Saved ({SavedCount:N0})") : "Saved";
 
     // ---- Search -----------------------------------------------------------------------------------------
 
@@ -405,6 +421,73 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         IsPlacesOpen = false;
         IsSettingsOpen = false;
     }
+
+    [RelayCommand]
+    private Task ShowAllAdsAsync() => SwitchViewAsync(saved: false);
+
+    [RelayCommand]
+    private Task ShowSavedAsync() => SwitchViewAsync(saved: true);
+
+    private Task SwitchViewAsync(bool saved)
+    {
+        IsPlacesOpen = false;
+        IsSettingsOpen = false;
+        if (IsSavedView == saved)
+        {
+            return Task.CompletedTask;
+        }
+
+        IsSavedView = saved;
+        return ReloadAsync(ReloadReason.ViewChanged);
+    }
+
+    /// <summary>Stars or un-stars an ad. On the Saved tab an un-starred ad leaves the list at once.</summary>
+    [RelayCommand]
+    private async Task ToggleSaveAsync(AdRowViewModel? row)
+    {
+        row ??= SelectedRow;
+        if (row is null)
+        {
+            return;
+        }
+
+        try
+        {
+            if (row.IsSaved)
+            {
+                if (await _store.UnsaveAsync(row.Id).ConfigureAwait(true))
+                {
+                    SavedCount = Math.Max(0, SavedCount - 1);
+                }
+
+                row.IsSaved = false;
+                if (IsSavedView)
+                {
+                    Rows.Remove(row);
+                    CountText = SavedCountText(Rows.Count);
+                    UnreadCount = Rows.Count(r => r.Unread && !r.IsGone);
+                    UpdateBodyState(1);
+                }
+            }
+            else if (await _store.SaveAsync(row.Id, _time.GetUtcNow()).ConfigureAwait(true))
+            {
+                row.IsSaved = true;
+                SavedCount++;
+            }
+            else
+            {
+                ShowNotice("This ad is no longer published, so it can't be saved.");
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Saving ad {Id} failed", row.Id);
+            ShowNotice("Could not update the saved ads.");
+        }
+    }
+
+    private static string SavedCountText(int count) =>
+        count == 1 ? "1 saved ad" : string.Create(CultureInfo.CurrentCulture, $"{count:N0} saved ads");
 
     [RelayCommand]
     private void ClearSearch()
@@ -641,13 +724,19 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         var version = ++_reloadVersion;
         var filter = _preferences.Filter;
         var search = _search;
+        var savedView = IsSavedView;
         var now = _time.GetUtcNow();
         IReadOnlyList<AdRow> rows;
         int total;
+        int saved;
         try
         {
-            rows = await _store.QueryAsync(filter, now, search: search).ConfigureAwait(true);
+            // The Saved tab lists every saved ad; filters and search apply to the main list only.
+            rows = savedView
+                ? await _store.QuerySavedAsync(now).ConfigureAwait(true)
+                : await _store.QueryAsync(filter, now, search: search).ConfigureAwait(true);
             total = await _store.CountCurrentAsync(now).ConfigureAwait(true);
+            saved = await _store.CountSavedAsync().ConfigureAwait(true);
 
             // A cache from before search has titles only until its next snapshot (schema 3 clears the snapshot time).
             var sync = await _store.ReadSyncStateAsync().ConfigureAwait(true);
@@ -666,11 +755,12 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         }
 
         HasLoaded = true;
-        var applyNow = reason != ReloadReason.DataChanged || IsListAtTop || Rows.Count == 0;
+        SavedCount = saved;
+        var applyNow = reason != ReloadReason.DataChanged || IsListAtTop || Rows.Count == 0 || savedView;
         if (applyNow)
         {
             ApplyRows(rows, now, flashNew: reason == ReloadReason.DataChanged || reason == ReloadReason.ShowHeld);
-            if (reason is ReloadReason.ShowHeld or ReloadReason.SearchChanged)
+            if (reason is ReloadReason.ShowHeld or ReloadReason.SearchChanged or ReloadReason.ViewChanged)
             {
                 ScrollToTopRequested?.Invoke(this, EventArgs.Empty);
             }
@@ -714,7 +804,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(Rows));
         SelectedRow = selected is not null && existing.ContainsKey(selected.Id) && list.Contains(selected) ? selected : null;
         UnreadCount = list.Count(r => r.Unread);
-        CountText = DisplayText.AdCount(list.Count);
+        CountText = IsSavedView ? SavedCountText(list.Count) : DisplayText.AdCount(list.Count);
 
         if (flashing.Count > 0)
         {
@@ -756,6 +846,15 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     private void UpdateBodyState(int totalCached)
     {
+        if (IsSavedView)
+        {
+            ShowFirstDownload = ShowNoData = ShowChoosePlaces = ShowNoMatches = ShowNoSearchMatches = false;
+            ShowNoSaved = Rows.Count == 0;
+            ShowList = Rows.Count > 0;
+            return;
+        }
+
+        ShowNoSaved = false;
         var hasData = totalCached > 0 || _status.HasBaseline;
         var filter = _preferences.Filter;
         ShowFirstDownload = !hasData && _status.Phase == SyncPhase.LoadingSnapshot;
