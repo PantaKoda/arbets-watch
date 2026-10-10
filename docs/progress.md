@@ -207,6 +207,25 @@ dotnet test → 228 passed (6 new in SavedAdsTests: starring and filter independ
 - Live on a copy of the real 0.1.3 database (schema 3 → 4) in a separate data folder: starred three ads (gold stars, "Saved (3)", `docs/images/saved-stars.png`); the Saved tab listed them newest first; un-starring removed one; an ad made to expire in the copy showed "No longer published" and stayed saved; removing the rest showed the empty state.
 - Not verified live: Ctrl+S (synthetic keys can't reach a background test window, as before).
 
+## English titles (branch feat/title-translation, not released)
+
+Show ad titles in English on demand with the user's own free DeepL key; a header toggle switches back to the Swedish originals (hover a translated title for the original). Requested by the user on 2026-10-10.
+
+- Core (`src/ArbetsWatch.Core/Translation`): stateless `DeepLClient` (`POST /v2/translate` SV to EN-GB, batches of 50, `GET /v2/usage` to verify a key), `TitleTranslationService` (bounded in-memory cache, duplicate and cached titles never re-sent, serialized requests, pauses on 429/456/invalid key, falls back to the original). Translations are never written to SQLite, preferences or logs; only the on/off choice is a preference.
+- UI: only the rows on screen plus a margin are sent, after scrolling settles. Settings gets a Translation section with a masked key field.
+- Key safety: typed into Settings, verified against DeepL, then stored only as Windows DPAPI ciphertext (current user, app-specific entropy) in `deepl-key.bin` in the data folder; `ARBETSWATCH_DEEPL_KEY` overrides it for a session. The key is sent only in the Authorization header to the fixed DeepL host (redirects off, key format validated), and is never logged or put in a URL or body (tests assert this). Repository guards: `.gitignore` entries, `scripts/check-secrets.ps1` run by the `.githooks/pre-commit` hook (enable with `git config core.hooksPath .githooks`) and by the `format` CI job.
+
+Validation on Windows 11:
+
+```text
+dotnet test → 254 passed (26 new in TranslationTests: request shape and host by key type, batching, status mapping, short answers rejected, cache and pause behaviour, key save/remove, DPAPI round trip with no plaintext in the file, no key or titles in logs)
+dotnet format --verify-no-changes → clean; dotnet restore --locked-mode → ok
+scripts/check-secrets.ps1 → clean tree passes; a staged fake key was blocked by the hook
+```
+
+- Launched the app against a scratch data folder: starts and runs without errors.
+- Not verified: a real DeepL request (needs the user's key), the toggle and Settings UI by eye, and the upstream behaviour is from DeepL's documentation only.
+
 ## Next step
 
 Publish `v0.1.0` (tag on `main`, Release workflow), then run the manual M6 checks (sleep/resume, DPI change, tray menu). A later `v0.1.1` exercises the in-app update against GitHub end to end.

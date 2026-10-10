@@ -14,6 +14,13 @@ public sealed partial class AdRowViewModel : ObservableObject
     [ObservableProperty]
     public partial string Employer { get; set; } = string.Empty;
 
+    /// <summary>The title as published (Swedish). <see cref="Title"/> is what is shown: this, or its English translation.</summary>
+    public string OriginalTitle { get; private set; } = string.Empty;
+
+    /// <summary>Hover text: the Swedish original when the title is translated, otherwise the open hint.</summary>
+    [ObservableProperty]
+    public partial string TitleTip { get; set; } = OpenTip;
+
     [ObservableProperty]
     public partial string Place { get; set; } = string.Empty;
 
@@ -55,7 +62,42 @@ public sealed partial class AdRowViewModel : ObservableObject
         Update(row, now);
     }
 
+    private const string OpenTip = "Open on Platsbanken (Enter)";
+
+    private string? _english;
+    private bool _preferEnglish;
+
     public string Id { get; }
+
+    /// <summary>The translation is memory-only and tied to the exact original: a changed title is shown untranslated until translated again.</summary>
+    public void SetTranslation(string original, string? english)
+    {
+        if (original != OriginalTitle || english == _english)
+        {
+            return;
+        }
+
+        _english = english;
+        RefreshTitle();
+    }
+
+    public void ShowEnglish(bool value)
+    {
+        if (_preferEnglish != value)
+        {
+            _preferEnglish = value;
+            RefreshTitle();
+        }
+    }
+
+    private void RefreshTitle()
+    {
+        var translated = _preferEnglish && !string.IsNullOrWhiteSpace(_english) && _english != OriginalTitle;
+        Title = translated ? _english! : OriginalTitle;
+        TitleTip = translated ? $"Original: {OriginalTitle}" : OpenTip;
+        OnPropertyChanged(nameof(AccessibleName));
+        OnPropertyChanged(nameof(SaveName));
+    }
 
     public Uri? Url { get; private set; }
 
@@ -69,7 +111,14 @@ public sealed partial class AdRowViewModel : ObservableObject
     public void Update(AdRow row, DateTimeOffset now)
     {
         var ad = row.Ad;
-        Title = string.IsNullOrWhiteSpace(ad.Headline) ? "Untitled ad" : ad.Headline;
+        var original = string.IsNullOrWhiteSpace(ad.Headline) ? "Untitled ad" : ad.Headline;
+        if (original != OriginalTitle)
+        {
+            _english = null;
+        }
+
+        OriginalTitle = original;
+        RefreshTitle();
         Employer = ad.Employer ?? "Employer not specified";
         Place = DisplayText.Place(ad);
         Worktime = DisplayText.Worktime(ad);

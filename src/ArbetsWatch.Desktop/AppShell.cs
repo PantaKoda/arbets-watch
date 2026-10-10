@@ -4,6 +4,7 @@ using ArbetsWatch.Core.Platform;
 using ArbetsWatch.Core.Settings;
 using ArbetsWatch.Core.Storage;
 using ArbetsWatch.Core.Sync;
+using ArbetsWatch.Core.Translation;
 using ArbetsWatch.Core.Updates;
 using ArbetsWatch.Desktop.Platform;
 using ArbetsWatch.Desktop.Presentation;
@@ -36,6 +37,7 @@ public sealed class AppShell : IShell, IDisposable
     private readonly ILoggerFactory _loggers;
     private readonly UpdateService _updates;
     private readonly IAdDetailsSource _details;
+    private readonly TitleTranslationService _translation;
     private UpdateWindow? _updateWindow;
     private AdDetailsWindow? _detailsWindow;
     private AdDetailsViewModel? _detailsViewModel;
@@ -66,9 +68,11 @@ public sealed class AppShell : IShell, IDisposable
         SingleInstance instance,
         UpdateService updates,
         IAdDetailsSource details,
+        TitleTranslationService translation,
         ILoggerFactory loggers)
     {
         _updates = updates;
+        _translation = translation;
         _details = details;
         _paths = paths;
         _store = store;
@@ -94,7 +98,7 @@ public sealed class AppShell : IShell, IDisposable
         _application = application;
 
         var viewModel = new MainViewModel(_store, _coordinator, _catalog, new BrowserLauncher(_loggers.CreateLogger<BrowserLauncher>()),
-            TimeProvider.System, _paths, _preferences, this, _loggers.CreateLogger<MainViewModel>(), _updates);
+            TimeProvider.System, _paths, _preferences, this, _loggers.CreateLogger<MainViewModel>(), _updates, _translation);
         var window = new MainWindow { DataContext = viewModel, Icon = LoadIcon() };
         _viewModel = viewModel;
         _window = window;

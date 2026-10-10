@@ -117,7 +117,7 @@ public sealed partial class AdDetailsViewModel(
     public async Task LoadAsync(AdRowViewModel row)
     {
         _row = row;
-        Title = row.Title;
+        Title = row.OriginalTitle;
         Subtitle = $"{row.Employer} · {row.Place}";
         OnPropertyChanged(nameof(WindowTitle));
         Clear();

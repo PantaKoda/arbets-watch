@@ -81,3 +81,6 @@ jobs:
           global-json-file: global.json
       - run: dotnet restore ArbetsWatch.slnx --locked-mode
       - run: dotnet format ArbetsWatch.slnx --verify-no-changes --no-restore
+      - name: Secret scan (no API keys in tracked files)
+        shell: pwsh
+        run: pwsh scripts/check-secrets.ps1

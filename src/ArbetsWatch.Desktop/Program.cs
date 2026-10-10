@@ -5,6 +5,7 @@ using ArbetsWatch.Core.Platform;
 using ArbetsWatch.Core.Settings;
 using ArbetsWatch.Core.Storage;
 using ArbetsWatch.Core.Sync;
+using ArbetsWatch.Core.Translation;
 using ArbetsWatch.Core.Updates;
 using ArbetsWatch.Desktop.Platform;
 using Avalonia;
@@ -97,7 +98,17 @@ internal static class Program
             using var detailsHttp = JobSearchClient.CreateHttpClient($"ArbetsWatch/{version.Split('+')[0]}");
             var details = new JobSearchClient(detailsHttp);
 
-            using var shell = new AppShell(paths, store, coordinator, PlaceCatalog.LoadBundled(), preferences, instance, updates, details, loggers);
+            // Titles are translated on demand with the user's own DeepL key. The key is typed into Settings and kept
+            // only encrypted (Windows DPAPI, current user) outside the database; nothing about it is logged.
+            using var translateHttp = DeepLClient.CreateHttpClient($"ArbetsWatch/{version.Split('+')[0]}");
+            ISecretStore secrets = OperatingSystem.IsWindows()
+                ? new DpapiSecretStore(Path.Combine(paths.DataDirectory, "deepl-key.bin"))
+                : new UnavailableSecretStore();
+            var translation = new TitleTranslationService(new DeepLClient(translateHttp), secrets, time,
+                loggers.CreateLogger<TitleTranslationService>());
+
+            using var shell = new AppShell(paths, store, coordinator, PlaceCatalog.LoadBundled(), preferences, instance, updates, details,
+                translation, loggers);
             if (opened.QuarantinedTo is not null)
             {
                 shell.SetStartupMessage("The saved data couldn't be read, so ArbetsWatch started fresh and downloads the ads again. The old file was kept next to the new one.");

@@ -16,3 +16,9 @@ TestResults/
 snapshot*.jsonl
 *.log
 appsettings.Local.json
+
+# Secrets: the DeepL key is stored encrypted outside the repo; never commit key files or local env files
+deepl-key.bin
+*.key
+.env
+.env.*

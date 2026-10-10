@@ -56,6 +56,11 @@
                     <TextBlock Text="UPDATE" FontSize="10" FontWeight="SemiBold" LetterSpacing="1.2" VerticalAlignment="Center" />
                   </StackPanel>
                 </Button>
+                <!-- Titles in English (DeepL) or the Swedish originals. -->
+                <ToggleButton Classes="icon" IsChecked="{Binding ShowEnglish}" IsVisible="{Binding TranslationAvailable}"
+                              ToolTip.Tip="{Binding TranslateTip}" AutomationProperties.Name="Show titles in English">
+                  <TextBlock Text="EN" FontSize="10" FontWeight="SemiBold" LetterSpacing="1" VerticalAlignment="Center" />
+                </ToggleButton>
                 <Button Name="RefreshButton" Classes="icon" Classes.spinning="{Binding ShowActivity}" Command="{Binding RefreshCommand}"
                         ToolTip.Tip="Refresh (F5)" AutomationProperties.Name="Refresh">
                   <PathIcon Data="{StaticResource IconRefresh}" />
@@ -227,7 +232,7 @@
                        Background="Transparent" Padding="6,0" AutomationProperties.Name="Job ads">
                 <ListBox.ItemTemplate>
                   <DataTemplate x:DataType="vm:AdRowViewModel">
-                    <Panel ToolTip.Tip="Open on Platsbanken (Enter)" AutomationProperties.Name="{Binding AccessibleName}"
+                    <Panel ToolTip.Tip="{Binding TitleTip}" AutomationProperties.Name="{Binding AccessibleName}"
                            Opacity="{Binding IsGone, Converter={x:Static vm:Converters.GoneOpacity}}">
                       <Border Classes="flash" IsVisible="{Binding IsFlashing}" Margin="-8,-4" CornerRadius="8" IsHitTestVisible="False" />
                       <Grid ColumnDefinitions="*,Auto">
@@ -388,6 +393,19 @@
                                  Text="The accent colors the frame, highlights and selected chips. Status colors (updated, offline, failed) never change." />
                       <CheckBox Content="Transparent background" IsChecked="{Binding Transparent}" />
                       <CheckBox Content="Always on top" IsChecked="{Binding AlwaysOnTop}" />
+                    </StackPanel>
+                    <StackPanel Spacing="6" IsVisible="{Binding TranslationAvailable}">
+                      <TextBlock Classes="hud" Text="TRANSLATION" />
+                      <TextBlock Classes="secondary" TextWrapping="Wrap"
+                                 Text="Show ad titles in English with your own free DeepL key. Only the titles on screen are sent, translations stay in memory, and the key is stored encrypted for your Windows account (never in the database, logs or the project folder)." />
+                      <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8" IsVisible="{Binding CanStoreKey}">
+                        <TextBox Text="{Binding DeepLKeyInput}" PasswordChar="●" Watermark="Paste your DeepL API key"
+                                 AutomationProperties.Name="DeepL API key" MaxLength="100" />
+                        <Button Grid.Column="1" Content="Save key" Command="{Binding SaveDeepLKeyCommand}" IsEnabled="{Binding !IsCheckingKey}" />
+                      </Grid>
+                      <Button Content="Remove key" Command="{Binding RemoveDeepLKeyCommand}" IsVisible="{Binding HasTranslationKey}"
+                              HorizontalAlignment="Left" />
+                      <TextBlock Classes="secondary" Text="{Binding TranslationStatusText}" TextWrapping="Wrap" />
                     </StackPanel>
                     <StackPanel Spacing="6">
                       <TextBlock Classes="hud" Text="DATA" />
