@@ -48,6 +48,11 @@ public sealed partial class MainWindow : Window
                 {
                     var atTop = _listScroll.Offset.Y < 24;
                     vm.IsListAtTop = atTop;
+                    if (AdList.ItemsPanelRoot is VirtualizingStackPanel { FirstRealizedIndex: >= 0, LastRealizedIndex: >= 0 } panel)
+                    {
+                        vm.SetVisibleRange(panel.FirstRealizedIndex, panel.LastRealizedIndex);
+                    }
+
                     if (atTop && vm.HasHeldUpdates)
                     {
                         vm.ShowHeldCommand.Execute(null);

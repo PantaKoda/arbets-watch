@@ -207,6 +207,27 @@ dotnet test → 228 passed (6 new in SavedAdsTests: starring and filter independ
 - Live on a copy of the real 0.1.3 database (schema 3 → 4) in a separate data folder: starred three ads (gold stars, "Saved (3)", `docs/images/saved-stars.png`); the Saved tab listed them newest first; un-starring removed one; an ad made to expire in the copy showed "No longer published" and stayed saved; removing the rest showed the empty state.
 - Not verified live: Ctrl+S (synthetic keys can't reach a background test window, as before).
 
+## English titles (branch feat/title-translation, not released)
+
+Show ad titles in English on demand with the user's own free DeepL key; a header toggle switches back to the Swedish originals (hover a translated title for the original). Requested by the user on 2026-10-10.
+
+- Core (`src/ArbetsWatch.Core/Translation`): stateless `DeepLClient` (`POST /v2/translate` SV to EN-GB, batches of 50, `GET /v2/usage` to verify a key), `TitleTranslationService` (bounded in-memory cache, duplicate and cached titles never re-sent, serialized requests, pauses on 429/456/invalid key, falls back to the original). Translations are never written to SQLite, preferences or logs; only the on/off choice is a preference.
+- UI: only the rows on screen plus a margin are sent, after scrolling settles. Settings gets a Translation section with a masked key field.
+- Key safety: typed into Settings, verified against DeepL, then stored only as Windows DPAPI ciphertext (current user, app-specific entropy) in `deepl-key.bin` in the data folder; `ARBETSWATCH_DEEPL_KEY` overrides it for a session. The key is sent only in the Authorization header to the fixed DeepL host (redirects off, key format validated), and is never logged or put in a URL or body (tests assert this). Repository guards: `.gitignore` entries, `scripts/check-secrets.ps1` run by the `.githooks/pre-commit` hook (enable with `git config core.hooksPath .githooks`) and by the `format` CI job.
+
+Validation on Windows 11:
+
+```text
+dotnet test → 263 passed (35 new in TranslationTests: request shape and host by key type, Content-Length not chunked, batching, status mapping, short answers rejected, completed batches kept when a later one fails, cache and pause behaviour, a sent request finishes and is cached after the caller cancels, a stale verdict for an old key is ignored, key save/remove incl. unwritable and undeletable files, environment key precedence, DPAPI round trip with no plaintext in the file, no key or titles in logs)
+dotnet format --verify-no-changes → clean; dotnet restore --locked-mode → ok
+scripts/check-secrets.ps1 → clean tree passes; staged fake keys (also on a line starting with "++") are blocked by the hook
+```
+
+- Review of `5c96757` (PR #19) fixed: a failed key-file write is reported instead of closing the app; the EN button un-checks itself when no key is saved; an answered request is never cancelled mid-flight (no double spend); a retry is scheduled when a pause ends; completed batches are kept; the request has a Content-Length; the environment key is shown as such and cannot be saved over or removed; a stale verdict for a replaced key is ignored; the scan and hook gaps; the row tooltip shows the original and the open hint.
+- Looked at on Windows (screenshots of a running build with a scratch data folder): the EN button in the header; the Translation section in Settings (masked field, Save key, status line); EN with no key opens Settings with the notice and the button is not left checked.
+- Not verified: a real DeepL round trip (needs a key; the 403 mapping and `/v2/usage` shape rest on DeepL's documentation); the malformed, rejected and saved messages by eye; that the list stays put when translations change row heights while scrolled down (titles can wrap to two lines).
+- Limitation: search still matches the Swedish text while English titles are shown.
+
 ## Next step
 
 Publish `v0.1.0` (tag on `main`, Release workflow), then run the manual M6 checks (sleep/resume, DPI change, tray menu). A later `v0.1.1` exercises the in-app update against GitHub end to end.

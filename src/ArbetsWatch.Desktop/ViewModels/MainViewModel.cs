@@ -9,6 +9,7 @@ using ArbetsWatch.Core.Settings;
 using ArbetsWatch.Core.Storage;
 using ArbetsWatch.Core.Sync;
 using ArbetsWatch.Core.Time;
+using ArbetsWatch.Core.Translation;
 using ArbetsWatch.Core.Updates;
 using ArbetsWatch.Desktop.Controls;
 using ArbetsWatch.Desktop.Platform;
@@ -51,6 +52,12 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     private readonly ILogger<MainViewModel> _logger;
     private readonly DispatcherTimer _clock;
     private readonly UpdateService? _updates;
+    private readonly TitleTranslationService? _translation;
+    private readonly DispatcherTimer _translateDelay;
+    private CancellationTokenSource? _translateCts;
+    private int _visibleFirst;
+    private int _visibleLast = -1;
+    private bool _retryScheduled;
     private AppPreferences _preferences;
     private SyncStatus _status;
     private readonly DispatcherTimer _searchDelay;
@@ -71,7 +78,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         AppPreferences preferences,
         IShell shell,
         ILogger<MainViewModel> logger,
-        UpdateService? updates = null)
+        UpdateService? updates = null,
+        TitleTranslationService? translation = null)
     {
         _store = store;
         _coordinator = coordinator;
@@ -82,6 +90,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         _logger = logger;
         _preferences = preferences;
         _updates = updates;
+        _translation = translation;
         _status = coordinator.Status;
         DataDirectory = paths.DataDirectory;
         VersionText = $"ArbetsWatch {typeof(MainViewModel).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion?.Split('+')[0] ?? "dev"}";
@@ -119,6 +128,19 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             _searchDelay.Stop();
             ApplySearch();
         };
+
+        // Scrolling settles before visible titles are sent for translation.
+        _translateDelay = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(350) };
+        _translateDelay.Tick += (_, _) =>
+        {
+            _translateDelay.Stop();
+            _ = TranslateVisibleAsync();
+        };
+        if (translation is not null)
+        {
+            translation.Changed += (_, _) => Dispatcher.UIThread.Post(OnTranslationChanged);
+            RefreshTranslationState();
+        }
 
         _clock = new DispatcherTimer { Interval = TimeSpan.FromSeconds(20) };
         _clock.Tick += (_, _) => UpdateStatusText();
@@ -272,6 +294,33 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     public partial bool Paused { get; set; }
 
+    // ---- Title translation ------------------------------------------------------------------------------
+
+    /// <summary>Show ad titles in English (DeepL). Translations are kept in memory only; the original is one click away.</summary>
+    [ObservableProperty]
+    public partial bool ShowEnglish { get; set; }
+
+    /// <summary>Where the user types a key; cleared once it is saved. Never stored, logged or bound anywhere else.</summary>
+    [ObservableProperty]
+    public partial string DeepLKeyInput { get; set; } = string.Empty;
+
+    [ObservableProperty]
+    public partial string TranslationStatusText { get; set; } = string.Empty;
+
+    [ObservableProperty]
+    public partial bool HasTranslationKey { get; set; }
+
+    [ObservableProperty]
+    public partial bool IsCheckingKey { get; set; }
+
+    public bool TranslationAvailable => _translation is not null;
+
+    public bool CanStoreKey => _translation?.CanStoreKey == true;
+
+    public bool CanRemoveKey => HasTranslationKey && CanStoreKey;
+
+    public string TranslateTip => ShowEnglish ? "Showing English titles (DeepL). Click for the Swedish originals." : "Show titles in English (DeepL)";
+
     public string[] ThemeOptions { get; } = ["System", "Light", "Dark"];
 
     public IReadOnlyList<AccentPreset> Accents => AccentPalette.Presets;
@@ -316,6 +365,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     {
         _clock.Stop();
         _searchDelay.Stop();
+        _translateDelay.Stop();
+        _translateCts?.Cancel();
         _coordinator.StatusChanged -= _onStatus;
         _coordinator.DataChanged -= _onData;
     }
@@ -658,6 +709,9 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         AlwaysOnTop = p.AlwaysOnTop;
         SelectedAccent = AccentPalette.Find(p.Accent);
         Paused = p.MonitoringPaused;
+
+        // A saved preference without a key (removed since) quietly falls back to the originals.
+        ShowEnglish = p.ShowEnglishTitles && _translation?.IsConfigured == true;
         _syncingSettings = false;
     }
 
@@ -770,6 +824,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             HoldRows(rows, now);
         }
 
+        AfterRowsChanged();
         UpdateBodyState(total);
     }
 
@@ -949,6 +1004,228 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         StartupNotice = message;
         HasStartupNotice = true;
         DispatcherTimer.RunOnce(() => HasStartupNotice = false, TimeSpan.FromSeconds(30));
+    }
+
+    /// <summary>The list calls this as the visible range changes; only those rows (plus a margin) are translated.</summary>
+    public void SetVisibleRange(int first, int last)
+    {
+        _visibleFirst = first;
+        _visibleLast = last;
+        if (ShowEnglish)
+        {
+            _translateDelay.Stop();
+            _translateDelay.Start();
+        }
+    }
+
+    partial void OnShowEnglishChanged(bool value)
+    {
+        OnPropertyChanged(nameof(TranslateTip));
+        if (_syncingSettings)
+        {
+            return;
+        }
+
+        if (value && _translation?.IsConfigured != true)
+        {
+            // No key yet: send the user to the one place that asks for it. The reset is deferred so the button
+            // (whose binding is still writing true) sees the change and un-checks itself.
+            Dispatcher.UIThread.Post(() => ShowEnglish = false);
+            IsPlacesOpen = false;
+            IsSettingsOpen = true;
+            ShowNotice("Add a DeepL key in Settings to translate titles.");
+            return;
+        }
+
+        UpdatePreferences(_preferences with { ShowEnglishTitles = value });
+        AfterRowsChanged();
+    }
+
+    /// <summary>Applies the show-English choice and any cached translations to the rows, then asks for the missing ones.</summary>
+    private void AfterRowsChanged()
+    {
+        foreach (var row in Rows)
+        {
+            row.ShowEnglish(ShowEnglish);
+        }
+
+        ApplyCachedTranslations();
+        if (ShowEnglish)
+        {
+            _translateDelay.Stop();
+            _translateDelay.Start();
+        }
+    }
+
+    private void ApplyCachedTranslations()
+    {
+        if (_translation is null)
+        {
+            return;
+        }
+
+        foreach (var row in Rows)
+        {
+            row.SetTranslation(row.OriginalTitle, _translation.TryGet(row.OriginalTitle));
+        }
+    }
+
+    private async Task TranslateVisibleAsync()
+    {
+        if (!ShowEnglish || _translation is null || Rows.Count == 0)
+        {
+            return;
+        }
+
+        const int margin = 15;
+        var first = _visibleLast < 0 ? 0 : Math.Max(0, _visibleFirst - margin);
+        var last = _visibleLast < 0 ? Math.Min(Rows.Count - 1, 40) : Math.Min(Rows.Count - 1, _visibleLast + margin);
+        var titles = new List<string>();
+        for (var i = first; i <= last && i < Rows.Count; i++)
+        {
+            if (!Rows[i].IsGone)
+            {
+                titles.Add(Rows[i].OriginalTitle);
+            }
+        }
+
+        _translateCts?.Cancel();
+        var cts = _translateCts = new CancellationTokenSource();
+        try
+        {
+            await _translation.EnsureTranslatedAsync(titles, cts.Token).ConfigureAwait(true);
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+
+        if (!cts.IsCancellationRequested)
+        {
+            ApplyCachedTranslations();
+        }
+
+        ScheduleRetryAfterPause();
+    }
+
+    /// <summary>A paused service does nothing until asked again, so ask once when the pause ends.</summary>
+    private void ScheduleRetryAfterPause()
+    {
+        if (_translation?.PausedUntil is not { } until || _retryScheduled)
+        {
+            return;
+        }
+
+        _retryScheduled = true;
+        var wait = until - _time.GetUtcNow() + TimeSpan.FromSeconds(1);
+        DispatcherTimer.RunOnce(() =>
+        {
+            _retryScheduled = false;
+            if (ShowEnglish)
+            {
+                _translateDelay.Stop();
+                _translateDelay.Start();
+            }
+        }, wait > TimeSpan.FromSeconds(1) ? wait : TimeSpan.FromSeconds(1));
+    }
+
+    partial void OnHasTranslationKeyChanged(bool value) => OnPropertyChanged(nameof(CanRemoveKey));
+
+    private void OnTranslationChanged()
+    {
+        RefreshTranslationState();
+        if (ShowEnglish && _translation is { Health: TranslationHealth.QuotaExceeded or TranslationHealth.InvalidKey })
+        {
+            ShowNotice(_translation.Health == TranslationHealth.QuotaExceeded
+                ? "The DeepL monthly character limit is used up. Titles stay in Swedish."
+                : "DeepL rejected the saved key. Titles stay in Swedish; check the key in Settings.");
+        }
+    }
+
+    private void RefreshTranslationState()
+    {
+        if (_translation is null)
+        {
+            return;
+        }
+
+        HasTranslationKey = _translation.IsConfigured;
+        TranslationStatusText = _translation.Health switch
+        {
+            TranslationHealth.NotConfigured => _translation.CanStoreKey
+                ? "No key saved. Titles are shown in Swedish."
+                : "No key set. This platform has no encrypted storage; set ARBETSWATCH_DEEPL_KEY instead.",
+            TranslationHealth.InvalidKey => "DeepL rejected the saved key.",
+            TranslationHealth.QuotaExceeded => "The monthly character limit is used up.",
+            TranslationHealth.TemporarilyUnavailable => "DeepL is not answering right now; trying again shortly.",
+            _ => _translation.KeyFromEnvironment
+                ? "Using the key from ARBETSWATCH_DEEPL_KEY (not stored by ArbetsWatch)."
+                : "Key saved. Titles are translated when you switch to English.",
+        };
+        OnPropertyChanged(nameof(CanStoreKey));
+        OnPropertyChanged(nameof(CanRemoveKey));
+    }
+
+    [RelayCommand]
+    private async Task SaveDeepLKeyAsync()
+    {
+        if (_translation is null || string.IsNullOrWhiteSpace(DeepLKeyInput) || IsCheckingKey)
+        {
+            return;
+        }
+
+        IsCheckingKey = true;
+        try
+        {
+            var result = await _translation.SaveKeyAsync(DeepLKeyInput, CancellationToken.None).ConfigureAwait(true);
+            TranslationStatusText = result switch
+            {
+                KeyCheck.Saved => "Key saved, encrypted for your Windows account.",
+                KeyCheck.Malformed => "That does not look like a DeepL key.",
+                KeyCheck.Rejected => "DeepL rejected this key. Nothing was saved.",
+                KeyCheck.CouldNotStore => "DeepL accepted the key, but it could not be saved on this computer.",
+                KeyCheck.NotSupported => "The key cannot be saved here. Set ARBETSWATCH_DEEPL_KEY instead.",
+                _ => "Could not reach DeepL to check the key. Nothing was saved.",
+            };
+            if (result == KeyCheck.Saved)
+            {
+                DeepLKeyInput = string.Empty;
+                HasTranslationKey = true;
+                if (await _translation.GetUsageAsync(CancellationToken.None).ConfigureAwait(true) is { } usage)
+                {
+                    TranslationStatusText += string.Create(CultureInfo.CurrentCulture,
+                        $" {usage.CharactersUsed:N0} of {usage.CharacterLimit:N0} characters used this month.");
+                }
+
+                AfterRowsChanged();
+            }
+        }
+        finally
+        {
+            IsCheckingKey = false;
+        }
+    }
+
+    [RelayCommand]
+    private void RemoveDeepLKey()
+    {
+        if (_translation is null)
+        {
+            return;
+        }
+
+        var deleted = _translation.RemoveKey();
+        DeepLKeyInput = string.Empty;
+        ShowEnglish = false;
+        foreach (var row in Rows)
+        {
+            row.SetTranslation(row.OriginalTitle, null);
+        }
+
+        RefreshTranslationState();
+        TranslationStatusText = deleted
+            ? "Key removed. Titles are shown in Swedish."
+            : "Key removed for now, but the saved file could not be deleted; it will load again at the next start.";
     }
 
     private void ShowNotice(string message)
