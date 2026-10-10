@@ -227,7 +227,7 @@ public sealed class TranslationTests
         var service = Service(new FakeTranslator(), secrets);
         await service.EnsureTranslatedAsync(["A"], CancellationToken.None);
 
-        service.RemoveKey();
+        Assert.True(service.RemoveKey());
 
         Assert.Null(secrets.Stored);
         Assert.False(service.IsConfigured);
@@ -236,11 +236,145 @@ public sealed class TranslationTests
     }
 
     [Fact]
+    public async Task A_key_file_that_cannot_be_written_is_reported_not_thrown()
+    {
+        var secrets = new MemorySecretStore(null) { SaveFails = true };
+        var service = Service(new FakeTranslator(), secrets);
+
+        var result = await service.SaveKeyAsync(FreeKey, CancellationToken.None);
+
+        Assert.Equal(KeyCheck.CouldNotStore, result);
+        Assert.False(service.IsConfigured);
+        Assert.Null(secrets.Stored);
+    }
+
+    [Fact]
+    public void Removing_reports_a_key_file_that_could_not_be_deleted()
+    {
+        var secrets = new MemorySecretStore(FreeKey) { DeleteFails = true };
+        var service = Service(new FakeTranslator(), secrets);
+
+        Assert.False(service.RemoveKey());
+        Assert.False(service.IsConfigured);
+    }
+
+    [Fact]
+    public async Task A_request_that_was_sent_finishes_and_is_cached_even_if_the_caller_gives_up()
+    {
+        var translator = new FakeTranslator { Hold = new TaskCompletionSource() };
+        var service = Service(translator, new MemorySecretStore(FreeKey));
+        using var cts = new CancellationTokenSource();
+
+        var call = service.EnsureTranslatedAsync(["Städare"], cts.Token);
+        await translator.Started.Task;
+        await cts.CancelAsync();
+        translator.Hold.SetResult();
+        await call;
+
+        Assert.False(translator.LastToken.CanBeCanceled);
+        Assert.Equal("en:Städare", service.TryGet("Städare"));
+    }
+
+    [Fact]
+    public async Task A_caller_that_gives_up_before_its_turn_sends_nothing()
+    {
+        var translator = new FakeTranslator { Hold = new TaskCompletionSource() };
+        var service = Service(translator, new MemorySecretStore(FreeKey));
+        var first = service.EnsureTranslatedAsync(["A"], CancellationToken.None);
+        await translator.Started.Task;
+        using var cts = new CancellationTokenSource();
+        var second = service.EnsureTranslatedAsync(["B"], cts.Token);
+
+        await cts.CancelAsync();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => second);
+        translator.Hold.SetResult();
+        await first;
+
+        Assert.Single(translator.Calls);
+        Assert.Null(service.TryGet("B"));
+    }
+
+    [Fact]
+    public async Task Titles_answered_before_a_later_batch_failed_are_kept()
+    {
+        var handler = new DeepLStub { FailAfterRequests = 1 };
+        var client = new DeepLClient(new HttpClient(handler));
+        var titles = Enumerable.Range(0, 60).Select(i => $"Titel {i}").ToArray();
+
+        var result = await client.TranslateAsync(FreeKey, titles, CancellationToken.None);
+
+        Assert.Equal(TranslationStatus.Failed, result.Status);
+        Assert.Equal(DeepLClient.MaxBatch, result.Texts!.Count);
+
+        var translator = new FakeTranslator { Status = TranslationStatus.Failed, AnsweredBeforeFailure = 2 };
+        var service = Service(translator, new MemorySecretStore(FreeKey));
+        await service.EnsureTranslatedAsync(["A", "B", "C"], CancellationToken.None);
+
+        Assert.Equal("en:A", service.TryGet("A"));
+        Assert.Equal("en:B", service.TryGet("B"));
+        Assert.Null(service.TryGet("C"));
+    }
+
+    [Fact]
+    public async Task The_request_has_a_content_length_not_chunked_encoding()
+    {
+        var handler = new DeepLStub();
+        var client = new DeepLClient(new HttpClient(handler));
+
+        await client.TranslateAsync(FreeKey, ["Städare"], CancellationToken.None);
+
+        Assert.True(handler.ContentLength > 0);
+    }
+
+    [Fact]
+    public async Task A_verdict_for_an_old_key_does_not_poison_a_newly_saved_one()
+    {
+        var translator = new FakeTranslator { Status = TranslationStatus.InvalidKey, Hold = new TaskCompletionSource() };
+        var service = Service(translator, new MemorySecretStore(FreeKey));
+        var call = service.EnsureTranslatedAsync(["A"], CancellationToken.None);
+        await translator.Started.Task;
+
+        Assert.Equal(KeyCheck.Saved, await service.SaveKeyAsync(ProKey, CancellationToken.None));
+        translator.Hold.SetResult();
+        await call;
+
+        Assert.Equal(TranslationHealth.Ready, service.Health);
+    }
+
+    [Fact]
+    public async Task A_key_from_the_environment_wins_and_cannot_be_saved_over()
+    {
+        var secrets = new MemorySecretStore(ProKey);
+        var service = Service(new FakeTranslator(), secrets, environmentKey: FreeKey);
+
+        Assert.True(service.KeyFromEnvironment);
+        Assert.False(service.CanStoreKey);
+        Assert.Equal(KeyCheck.NotSupported, await service.SaveKeyAsync(ProKey, CancellationToken.None));
+        Assert.Equal(ProKey, secrets.Stored);
+    }
+
+    [Fact]
+    public async Task The_retry_time_is_known_while_paused()
+    {
+        var time = new FakeTimeProvider(DateTimeOffset.Parse("2026-10-10T08:00:00Z"));
+        var translator = new FakeTranslator { Status = TranslationStatus.Failed };
+        var service = Service(translator, new MemorySecretStore(FreeKey), time);
+
+        Assert.Null(service.PausedUntil);
+        await service.EnsureTranslatedAsync(["A"], CancellationToken.None);
+
+        Assert.Equal(time.GetUtcNow() + TimeSpan.FromSeconds(30), service.PausedUntil);
+        time.Advance(TimeSpan.FromSeconds(31));
+        Assert.Null(service.PausedUntil);
+    }
+
+    [Fact]
     public async Task Failures_log_a_status_but_never_the_key_or_titles()
     {
         var logger = new CapturingLogger();
         var translator = new FakeTranslator { Status = TranslationStatus.Failed };
-        var service = new TitleTranslationService(translator, new MemorySecretStore(FreeKey), TimeProvider.System, logger);
+        var service = new TitleTranslationService(translator, new MemorySecretStore(FreeKey), TimeProvider.System, logger,
+            environmentKey: () => null);
 
         await service.EnsureTranslatedAsync(["Hemligt jobb"], CancellationToken.None);
 
@@ -323,20 +457,47 @@ public sealed class TranslationTests
 
     public static bool IsWindows => OperatingSystem.IsWindows();
 
-    private static TitleTranslationService Service(FakeTranslator translator, MemorySecretStore secrets, TimeProvider? time = null) =>
-        new(translator, secrets, time ?? TimeProvider.System, NullLogger<TitleTranslationService>.Instance);
+    // The environment lookup is injected so the tests do not depend on this machine's ARBETSWATCH_DEEPL_KEY.
+    private static TitleTranslationService Service(
+        FakeTranslator translator,
+        MemorySecretStore secrets,
+        TimeProvider? time = null,
+        string? environmentKey = null) =>
+        new(translator, secrets, time ?? TimeProvider.System, NullLogger<TitleTranslationService>.Instance,
+            environmentKey: () => environmentKey);
 
     private sealed class MemorySecretStore(string? initial) : ISecretStore
     {
         public string? Stored { get; private set; } = initial;
 
+        public bool SaveFails { get; set; }
+
+        public bool DeleteFails { get; set; }
+
         public bool IsAvailable => true;
 
         public string? Load() => Stored;
 
-        public void Save(string secret) => Stored = secret;
+        public void Save(string secret)
+        {
+            if (SaveFails)
+            {
+                throw new IOException("disk full");
+            }
 
-        public void Delete() => Stored = null;
+            Stored = secret;
+        }
+
+        public bool Delete()
+        {
+            if (DeleteFails)
+            {
+                return false;
+            }
+
+            Stored = null;
+            return true;
+        }
     }
 
     private sealed class FakeTranslator : ITitleTranslator
@@ -347,12 +508,29 @@ public sealed class TranslationTests
 
         public TranslationStatus UsageStatus { get; set; } = TranslationStatus.Ok;
 
-        public Task<TranslationResult> TranslateAsync(string apiKey, IReadOnlyList<string> texts, CancellationToken cancellationToken)
+        /// <summary>On a failure, the first this-many titles were already answered.</summary>
+        public int AnsweredBeforeFailure { get; set; }
+
+        /// <summary>When set, a request waits for it, and sees the token it was given.</summary>
+        public TaskCompletionSource? Hold { get; set; }
+
+        public TaskCompletionSource Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public CancellationToken LastToken { get; private set; }
+
+        public async Task<TranslationResult> TranslateAsync(string apiKey, IReadOnlyList<string> texts, CancellationToken cancellationToken)
         {
             Calls.Add([.. texts]);
-            return Task.FromResult(Status == TranslationStatus.Ok
+            LastToken = cancellationToken;
+            Started.TrySetResult();
+            if (Hold is { } hold)
+            {
+                await hold.Task;
+            }
+
+            return Status == TranslationStatus.Ok
                 ? new TranslationResult(Status, texts.Select(t => "en:" + t).ToArray())
-                : new TranslationResult(Status));
+                : new TranslationResult(Status, AnsweredBeforeFailure > 0 ? texts.Take(AnsweredBeforeFailure).Select(t => "en:" + t).ToArray() : null);
         }
 
         public Task<UsageResult> GetUsageAsync(string apiKey, CancellationToken cancellationToken) =>
@@ -369,10 +547,21 @@ public sealed class TranslationTests
 
         public bool DropLast { get; set; }
 
+        /// <summary>Requests after this many are answered with a server error.</summary>
+        public int FailAfterRequests { get; set; } = int.MaxValue;
+
+        public long? ContentLength { get; private set; }
+
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             var body = request.Content is null ? string.Empty : await request.Content.ReadAsStringAsync(cancellationToken);
             Requests.Add(new Seen(request.RequestUri!, body, request.Headers.Authorization));
+            ContentLength = request.Content?.Headers.ContentLength;
+            if (Requests.Count > FailAfterRequests)
+            {
+                return new HttpResponseMessage(HttpStatusCode.InternalServerError);
+            }
+
             if (Status != HttpStatusCode.OK)
             {
                 return new HttpResponseMessage(Status);

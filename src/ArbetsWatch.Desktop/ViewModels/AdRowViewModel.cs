@@ -94,7 +94,7 @@ public sealed partial class AdRowViewModel : ObservableObject
     {
         var translated = _preferEnglish && !string.IsNullOrWhiteSpace(_english) && _english != OriginalTitle;
         Title = translated ? _english! : OriginalTitle;
-        TitleTip = translated ? $"Original: {OriginalTitle}" : OpenTip;
+        TitleTip = translated ? $"Original: {OriginalTitle}\n{OpenTip}" : OpenTip;
         OnPropertyChanged(nameof(AccessibleName));
         OnPropertyChanged(nameof(SaveName));
     }

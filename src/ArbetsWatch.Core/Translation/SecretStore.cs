@@ -14,7 +14,8 @@ public interface ISecretStore
 
     void Save(string secret);
 
-    void Delete();
+    /// <summary>True when no stored key remains.</summary>
+    bool Delete();
 }
 
 /// <summary>For platforms without an encrypted per-user store: nothing is ever written to disk.</summary>
@@ -26,9 +27,7 @@ public sealed class UnavailableSecretStore : ISecretStore
 
     public void Save(string secret) => throw new PlatformNotSupportedException("No encrypted storage on this platform.");
 
-    public void Delete()
-    {
-    }
+    public bool Delete() => true;
 }
 
 /// <summary>
@@ -86,15 +85,17 @@ public sealed class DpapiSecretStore(string path) : ISecretStore
         }
     }
 
-    public void Delete()
+    public bool Delete()
     {
         try
         {
             File.Delete(path);
+            return true;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            // Left in place; it is ciphertext and the caller reports the key as removed from memory.
+            // Locked or read-only: the ciphertext stays, and the caller says so.
+            return false;
         }
     }
 }

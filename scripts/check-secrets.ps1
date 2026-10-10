@@ -38,21 +38,24 @@ function Test-Line([string]$path, [int]$number, [string]$line) {
 if ($Staged) {
     $path = $null
     $number = 0
-    foreach ($line in (git diff --cached --unified=0 --no-color)) {
-        if ($line -match '^\+\+\+ b/(.+)$') { $path = $Matches[1]; continue }
-        if ($line -match '^@@ .* \+(\d+)') { $number = [int]$Matches[1]; continue }
-        if ($line.StartsWith('+') -and -not $line.StartsWith('+++')) {
+    $inHunk = $false
+    foreach ($line in (git -c core.quotePath=false diff --cached --unified=0 --no-color)) {
+        if ($line.StartsWith('diff --git ')) { $inHunk = $false; continue }
+        # File headers only count before a file's first hunk; afterwards "+++" is added text.
+        if (-not $inHunk -and $line -match '^\+\+\+ b/(.+)$') { $path = $Matches[1]; continue }
+        if ($line -match '^@@ .* \+(\d+)') { $number = [int]$Matches[1]; $inHunk = $true; continue }
+        if ($inHunk -and $line.StartsWith('+')) {
             Test-Line $path $number $line.Substring(1)
             $number++
         }
     }
-    $stagedFiles = git diff --cached --name-only
+    $stagedFiles = git -c core.quotePath=false diff --cached --name-only
     foreach ($f in $stagedFiles) {
         if ($f -match '(^|/)deepl-key\.bin$' -or $f -match '\.key$') { $findings.Add("${f}: key files must never be committed") }
     }
 }
 else {
-    foreach ($file in (git ls-files)) {
+    foreach ($file in (git -c core.quotePath=false ls-files)) {
         if ($file -match '(^|/)deepl-key\.bin$' -or $file -match '\.key$') { $findings.Add("${file}: key files must never be committed"); continue }
         if ($file -match '\.(png|ico|zip|db|dll|exe)$' -or -not (Test-Path -LiteralPath $file -PathType Leaf)) { continue }
         $number = 0

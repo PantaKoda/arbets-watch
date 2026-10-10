@@ -218,13 +218,15 @@ Show ad titles in English on demand with the user's own free DeepL key; a header
 Validation on Windows 11:
 
 ```text
-dotnet test → 254 passed (26 new in TranslationTests: request shape and host by key type, batching, status mapping, short answers rejected, cache and pause behaviour, key save/remove, DPAPI round trip with no plaintext in the file, no key or titles in logs)
+dotnet test → 263 passed (35 new in TranslationTests: request shape and host by key type, Content-Length not chunked, batching, status mapping, short answers rejected, completed batches kept when a later one fails, cache and pause behaviour, a sent request finishes and is cached after the caller cancels, a stale verdict for an old key is ignored, key save/remove incl. unwritable and undeletable files, environment key precedence, DPAPI round trip with no plaintext in the file, no key or titles in logs)
 dotnet format --verify-no-changes → clean; dotnet restore --locked-mode → ok
-scripts/check-secrets.ps1 → clean tree passes; a staged fake key was blocked by the hook
+scripts/check-secrets.ps1 → clean tree passes; staged fake keys (also on a line starting with "++") are blocked by the hook
 ```
 
-- Launched the app against a scratch data folder: starts and runs without errors.
-- Not verified: a real DeepL request (needs the user's key), the toggle and Settings UI by eye, and the upstream behaviour is from DeepL's documentation only.
+- Review of `5c96757` (PR #19) fixed: a failed key-file write is reported instead of closing the app; the EN button un-checks itself when no key is saved; an answered request is never cancelled mid-flight (no double spend); a retry is scheduled when a pause ends; completed batches are kept; the request has a Content-Length; the environment key is shown as such and cannot be saved over or removed; a stale verdict for a replaced key is ignored; the scan and hook gaps; the row tooltip shows the original and the open hint.
+- Looked at on Windows (screenshots of a running build with a scratch data folder): the EN button in the header; the Translation section in Settings (masked field, Save key, status line); EN with no key opens Settings with the notice and the button is not left checked.
+- Not verified: a real DeepL round trip (needs a key; the 403 mapping and `/v2/usage` shape rest on DeepL's documentation); the malformed, rejected and saved messages by eye; that the list stays put when translations change row heights while scrolled down (titles can wrap to two lines).
+- Limitation: search still matches the Swedish text while English titles are shown.
 
 ## Next step
 

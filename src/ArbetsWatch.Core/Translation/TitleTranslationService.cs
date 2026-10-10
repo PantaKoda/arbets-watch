@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using Microsoft.Extensions.Logging;
 
 namespace ArbetsWatch.Core.Translation;
@@ -17,6 +18,7 @@ public enum KeyCheck
     Malformed,
     Rejected,
     CouldNotVerify,
+    CouldNotStore,
     NotSupported,
 }
 
@@ -37,10 +39,12 @@ public sealed class TitleTranslationService
     private readonly TimeProvider _time;
     private readonly ILogger<TitleTranslationService> _logger;
     private readonly TitleTranslationCache _cache;
+    private readonly Func<string?> _environmentKey;
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly Lock _state = new();
     private string? _key;
     private bool _keyLoaded;
+    private bool _fromEnvironment;
     private TranslationHealth _health;
     private DateTimeOffset _pausedUntil;
 
@@ -49,8 +53,10 @@ public sealed class TitleTranslationService
         ISecretStore secrets,
         TimeProvider time,
         ILogger<TitleTranslationService> logger,
-        int cacheCapacity = 5000)
+        int cacheCapacity = 5000,
+        Func<string?>? environmentKey = null)
     {
+        _environmentKey = environmentKey ?? (() => Environment.GetEnvironmentVariable(KeyEnvironmentVariable));
         _translator = translator;
         _secrets = secrets;
         _time = time;
@@ -62,7 +68,32 @@ public sealed class TitleTranslationService
     /// <summary>Raised (on any thread) when the key or the service state changes.</summary>
     public event EventHandler? Changed;
 
-    public bool CanStoreKey => _secrets.IsAvailable;
+    /// <summary>The key comes from <c>ARBETSWATCH_DEEPL_KEY</c>: it wins over a saved one and cannot be saved or removed here.</summary>
+    public bool KeyFromEnvironment
+    {
+        get
+        {
+            _ = Key();
+            lock (_state)
+            {
+                return _fromEnvironment;
+            }
+        }
+    }
+
+    public bool CanStoreKey => _secrets.IsAvailable && !KeyFromEnvironment;
+
+    /// <summary>When requests are paused until, or null when they are not.</summary>
+    public DateTimeOffset? PausedUntil
+    {
+        get
+        {
+            lock (_state)
+            {
+                return _pausedUntil > _time.GetUtcNow() ? _pausedUntil : null;
+            }
+        }
+    }
 
     public bool IsConfigured => Key() is not null;
 
@@ -91,7 +122,7 @@ public sealed class TitleTranslationService
             .Distinct(StringComparer.Ordinal)
             .Where(t => _cache.TryGet(t) is null)
             .ToList();
-        if (wanted.Count == 0 || Key() is not { } key)
+        if (wanted.Count == 0 || Key() is null)
         {
             return;
         }
@@ -99,7 +130,8 @@ public sealed class TitleTranslationService
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            if (IsPaused())
+            // Read under the gate: a key saved while this call waited is the one to use.
+            if (IsPaused() || Key() is not { } key)
             {
                 return;
             }
@@ -111,16 +143,22 @@ public sealed class TitleTranslationService
                 return;
             }
 
-            var result = await _translator.TranslateAsync(key, wanted, cancellationToken).ConfigureAwait(false);
+            // A request that was sent finishes even if the caller gave up: the answer is cached, not paid for twice.
+            var result = await _translator.TranslateAsync(key, wanted, CancellationToken.None).ConfigureAwait(false);
+            for (var i = 0; i < (result.Texts?.Count ?? 0) && i < wanted.Count; i++)
+            {
+                _cache.Set(wanted[i], result.Texts![i]);
+            }
+
             if (result.Status == TranslationStatus.Ok)
             {
-                for (var i = 0; i < wanted.Count; i++)
-                {
-                    _cache.Set(wanted[i], result.Texts![i]);
-                }
-
                 SetHealth(TranslationHealth.Ready, null);
                 return;
+            }
+
+            if (!string.Equals(Key(), key, StringComparison.Ordinal))
+            {
+                return; // The key changed while this was in flight: its verdict no longer applies.
             }
 
             _logger.LogWarning("Title translation did not complete: {Status}", result.Status);
@@ -155,7 +193,7 @@ public sealed class TitleTranslationService
             return KeyCheck.Malformed;
         }
 
-        if (!_secrets.IsAvailable)
+        if (!_secrets.IsAvailable || KeyFromEnvironment)
         {
             return KeyCheck.NotSupported;
         }
@@ -171,7 +209,16 @@ public sealed class TitleTranslationService
                 return KeyCheck.CouldNotVerify;
         }
 
-        _secrets.Save(candidate);
+        try
+        {
+            _secrets.Save(candidate);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or CryptographicException)
+        {
+            _logger.LogWarning("The DeepL key could not be stored: {Reason}", ex.GetType().Name);
+            return KeyCheck.CouldNotStore;
+        }
+
         lock (_state)
         {
             _key = candidate;
@@ -184,10 +231,10 @@ public sealed class TitleTranslationService
         return KeyCheck.Saved;
     }
 
-    /// <summary>Forgets the key (memory and encrypted file) and every cached translation.</summary>
-    public void RemoveKey()
+    /// <summary>Forgets the key (memory and encrypted file) and every cached translation. False if the file could not be deleted.</summary>
+    public bool RemoveKey()
     {
-        _secrets.Delete();
+        var deleted = _secrets.Delete();
         lock (_state)
         {
             _key = null;
@@ -197,6 +244,7 @@ public sealed class TitleTranslationService
 
         _cache.Clear();
         SetHealth(TranslationHealth.NotConfigured, null);
+        return deleted;
     }
 
     /// <summary>Characters used this billing period, or null when unknown (no key, offline, rejected).</summary>
@@ -217,8 +265,9 @@ public sealed class TitleTranslationService
         {
             if (!_keyLoaded)
             {
-                var fromEnvironment = Environment.GetEnvironmentVariable(KeyEnvironmentVariable)?.Trim();
-                var found = DeepLKey.IsWellFormed(fromEnvironment) ? fromEnvironment : _secrets.Load();
+                var fromEnvironment = _environmentKey()?.Trim();
+                _fromEnvironment = DeepLKey.IsWellFormed(fromEnvironment);
+                var found = _fromEnvironment ? fromEnvironment : _secrets.Load();
                 _key = DeepLKey.IsWellFormed(found) ? found : null;
                 _keyLoaded = true;
             }

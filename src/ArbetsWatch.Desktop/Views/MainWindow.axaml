@@ -403,7 +403,7 @@
                                  AutomationProperties.Name="DeepL API key" MaxLength="100" />
                         <Button Grid.Column="1" Content="Save key" Command="{Binding SaveDeepLKeyCommand}" IsEnabled="{Binding !IsCheckingKey}" />
                       </Grid>
-                      <Button Content="Remove key" Command="{Binding RemoveDeepLKeyCommand}" IsVisible="{Binding HasTranslationKey}"
+                      <Button Content="Remove key" Command="{Binding RemoveDeepLKeyCommand}" IsVisible="{Binding CanRemoveKey}"
                               HorizontalAlignment="Left" />
                       <TextBlock Classes="secondary" Text="{Binding TranslationStatusText}" TextWrapping="Wrap" />
                     </StackPanel>

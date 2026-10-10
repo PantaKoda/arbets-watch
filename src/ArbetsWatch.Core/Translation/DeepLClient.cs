@@ -1,6 +1,6 @@
 using System.Net;
 using System.Net.Http.Headers;
-using System.Net.Http.Json;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -72,7 +72,8 @@ public sealed class DeepLClient(HttpClient http) : ITitleTranslator
             var result = await TranslateBatchAsync(apiKey, batch, cancellationToken).ConfigureAwait(false);
             if (result.Status != TranslationStatus.Ok)
             {
-                return result;
+                // Earlier batches were answered (and counted by DeepL): hand them back so they are cached.
+                return all.Count > 0 ? result with { Texts = all } : result;
             }
 
             all.AddRange(result.Texts!);
@@ -112,8 +113,10 @@ public sealed class DeepLClient(HttpClient http) : ITitleTranslator
     private async Task<TranslationResult> TranslateBatchAsync(string apiKey, string[] batch, CancellationToken cancellationToken)
     {
         using var request = Request(HttpMethod.Post, apiKey, "v2/translate");
-        request.Content = JsonContent.Create(
-            new TranslateRequest(batch, "SV", "EN-GB"), DeepLJsonContext.Default.TranslateRequest);
+        // Serialized to a string first so the request carries a Content-Length rather than chunked encoding.
+        request.Content = new StringContent(
+            JsonSerializer.Serialize(new TranslateRequest(batch, "SV", "EN-GB"), DeepLJsonContext.Default.TranslateRequest),
+            Encoding.UTF8, "application/json");
         try
         {
             using var response = await http.SendAsync(request, cancellationToken).ConfigureAwait(false);

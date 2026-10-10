@@ -57,6 +57,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     private CancellationTokenSource? _translateCts;
     private int _visibleFirst;
     private int _visibleLast = -1;
+    private bool _retryScheduled;
     private AppPreferences _preferences;
     private SyncStatus _status;
     private readonly DispatcherTimer _searchDelay;
@@ -315,6 +316,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     public bool TranslationAvailable => _translation is not null;
 
     public bool CanStoreKey => _translation?.CanStoreKey == true;
+
+    public bool CanRemoveKey => HasTranslationKey && CanStoreKey;
 
     public string TranslateTip => ShowEnglish ? "Showing English titles (DeepL). Click for the Swedish originals." : "Show titles in English (DeepL)";
 
@@ -1025,8 +1028,9 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
         if (value && _translation?.IsConfigured != true)
         {
-            // No key yet: send the user to the one place that asks for it.
-            ShowEnglish = false;
+            // No key yet: send the user to the one place that asks for it. The reset is deferred so the button
+            // (whose binding is still writing true) sees the change and un-checks itself.
+            Dispatcher.UIThread.Post(() => ShowEnglish = false);
             IsPlacesOpen = false;
             IsSettingsOpen = true;
             ShowNotice("Add a DeepL key in Settings to translate titles.");
@@ -1100,7 +1104,32 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         {
             ApplyCachedTranslations();
         }
+
+        ScheduleRetryAfterPause();
     }
+
+    /// <summary>A paused service does nothing until asked again, so ask once when the pause ends.</summary>
+    private void ScheduleRetryAfterPause()
+    {
+        if (_translation?.PausedUntil is not { } until || _retryScheduled)
+        {
+            return;
+        }
+
+        _retryScheduled = true;
+        var wait = until - _time.GetUtcNow() + TimeSpan.FromSeconds(1);
+        DispatcherTimer.RunOnce(() =>
+        {
+            _retryScheduled = false;
+            if (ShowEnglish)
+            {
+                _translateDelay.Stop();
+                _translateDelay.Start();
+            }
+        }, wait > TimeSpan.FromSeconds(1) ? wait : TimeSpan.FromSeconds(1));
+    }
+
+    partial void OnHasTranslationKeyChanged(bool value) => OnPropertyChanged(nameof(CanRemoveKey));
 
     private void OnTranslationChanged()
     {
@@ -1129,9 +1158,12 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             TranslationHealth.InvalidKey => "DeepL rejected the saved key.",
             TranslationHealth.QuotaExceeded => "The monthly character limit is used up.",
             TranslationHealth.TemporarilyUnavailable => "DeepL is not answering right now; trying again shortly.",
-            _ => "Key saved. Titles are translated when you switch to English.",
+            _ => _translation.KeyFromEnvironment
+                ? "Using the key from ARBETSWATCH_DEEPL_KEY (not stored by ArbetsWatch)."
+                : "Key saved. Titles are translated when you switch to English.",
         };
         OnPropertyChanged(nameof(CanStoreKey));
+        OnPropertyChanged(nameof(CanRemoveKey));
     }
 
     [RelayCommand]
@@ -1151,7 +1183,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
                 KeyCheck.Saved => "Key saved, encrypted for your Windows account.",
                 KeyCheck.Malformed => "That does not look like a DeepL key.",
                 KeyCheck.Rejected => "DeepL rejected this key. Nothing was saved.",
-                KeyCheck.NotSupported => "This platform has no encrypted storage. Set ARBETSWATCH_DEEPL_KEY instead.",
+                KeyCheck.CouldNotStore => "DeepL accepted the key, but it could not be saved on this computer.",
+                KeyCheck.NotSupported => "The key cannot be saved here. Set ARBETSWATCH_DEEPL_KEY instead.",
                 _ => "Could not reach DeepL to check the key. Nothing was saved.",
             };
             if (result == KeyCheck.Saved)
@@ -1181,7 +1214,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             return;
         }
 
-        _translation.RemoveKey();
+        var deleted = _translation.RemoveKey();
         DeepLKeyInput = string.Empty;
         ShowEnglish = false;
         foreach (var row in Rows)
@@ -1190,7 +1223,9 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         }
 
         RefreshTranslationState();
-        TranslationStatusText = "Key removed. Titles are shown in Swedish.";
+        TranslationStatusText = deleted
+            ? "Key removed. Titles are shown in Swedish."
+            : "Key removed for now, but the saved file could not be deleted; it will load again at the next start.";
     }
 
     private void ShowNotice(string message)
