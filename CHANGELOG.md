@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.1.5] - 2026-10-10
+
+- English titles: an **EN** button in the header shows ad titles in English, and a second click brings back the Swedish originals (hover a translated title to see the original). It uses your own free DeepL account: in Settings, paste your DeepL API key under **Translation**. Only the titles on screen are sent, translations are kept in memory only (never saved to the database), and the key is stored encrypted for your Windows account. Without a key the app works exactly as before. This was not tried against the real DeepL service before release; if the key is rejected or titles don't change, the Translation section in Settings says why.
+- Search still looks at the Swedish text while English titles are shown.
+
 ## [0.1.4] - 2026-10-09
 
 - Saved ads: a star on every ad (or Ctrl+S on the selected one) keeps it on your saved list; the star turns gold in the main list too. A new **Saved** tab above the filters lists every saved ad, newest first, whatever your places, worktime or search. Click the star again to remove an ad. Saved ads stay until you remove them, also after Platsbanken takes them down (then marked "No longer published", with their last known details).
