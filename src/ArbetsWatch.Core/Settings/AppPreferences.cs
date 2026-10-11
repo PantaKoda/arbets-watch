@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using ArbetsWatch.Core.Filtering;
+using ArbetsWatch.Core.Presentation;
 using ArbetsWatch.Core.Storage;
 
 namespace ArbetsWatch.Core.Settings;
@@ -41,6 +42,9 @@ public sealed record AppPreferences
     /// <summary>Show ad titles translated to English (the original stays one toggle away). Never stores translations.</summary>
     public bool ShowEnglishTitles { get; init; }
 
+    /// <summary>Where the user stopped reading the list; null when no bookmark is set.</summary>
+    public ReadingBookmark? Bookmark { get; init; }
+
     public AppPreferences Normalized() =>
         this with { PollMinutes = Math.Clamp(PollMinutes, MinPollMinutes, MaxPollMinutes) };
 }
@@ -68,7 +72,7 @@ public static class PreferencesStore
         var dto = new PreferencesDto(
             new FilterDto(p.Filter.AllSweden, [.. p.Filter.RegionIds.Order(StringComparer.Ordinal)],
                 [.. p.Filter.MunicipalityIds.Order(StringComparer.Ordinal)], p.Filter.Worktime),
-            p.PollMinutes, p.Window, p.Theme, p.Transparent, p.AlwaysOnTop, p.MonitoringPaused, p.Accent, p.ShowEnglishTitles);
+            p.PollMinutes, p.Window, p.Theme, p.Transparent, p.AlwaysOnTop, p.MonitoringPaused, p.Accent, p.ShowEnglishTitles, p.Bookmark);
         return JsonSerializer.Serialize(dto, PreferencesJsonContext.Default.PreferencesDto);
     }
 
@@ -109,6 +113,7 @@ public static class PreferencesStore
                 MonitoringPaused = dto.MonitoringPaused ?? false,
                 Accent = dto.Accent is { Length: > 0 } accent ? accent : null,
                 ShowEnglishTitles = dto.ShowEnglishTitles ?? false,
+                Bookmark = dto.Bookmark is { AdId.Length: > 0 } bookmark ? bookmark : null,
             }.Normalized();
         }
         catch (JsonException)
@@ -129,7 +134,8 @@ internal sealed record PreferencesDto(
     bool? AlwaysOnTop,
     bool? MonitoringPaused,
     string? Accent = null,
-    bool? ShowEnglishTitles = null);
+    bool? ShowEnglishTitles = null,
+    ReadingBookmark? Bookmark = null);
 
 [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase, UseStringEnumConverter = true)]
 [JsonSerializable(typeof(PreferencesDto))]

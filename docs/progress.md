@@ -228,6 +228,22 @@ scripts/check-secrets.ps1 → clean tree passes; staged fake keys (also on a lin
 - Not verified: a real DeepL round trip (needs a key; the 403 mapping and `/v2/usage` shape rest on DeepL's documentation); the malformed, rejected and saved messages by eye; that the list stays put when translations change row heights while scrolled down (titles can wrap to two lines).
 - Limitation: search still matches the Swedish text while English titles are shown.
 
+## Bookmark (after v0.1.5)
+
+"Where did I stop?" Requested by the user on 2026-10-11: the list is long, new ads keep arriving at the top, and there was no way to find the place where reading stopped.
+
+- Core: `ReadingBookmark(AdId, PublishedUtc)` saved in the preferences. `Locate` finds it in any list sorted like the ad list: the ad itself, or the first ad that sorts after it when the ad is gone or filtered out (the end of the list when everything shown is newer). Row numbers were rejected: positions shift as ads arrive.
+- UI: a bookmark button on each row, shown when the row is pointed at or selected (always on the bookmarked row); Ctrl+B on the selection; a "You stopped here" / "You stopped near here" chip; "Go to bookmark" (Ctrl+G) at the right of the tab row selects the row and scrolls it to the top of the list, switching from the Saved tab and applying held-back updates first.
+
+Validation on Windows 11:
+
+```text
+dotnet test → 272 passed (8 new in ReadingBookmarkTests: exact match, missing ad between others, ID tie-break, missing publication time, older than everything, empty list, changed time, preferences round trip)
+```
+
+- Live on copies of the real database in a separate data folder: bookmarked a visible row (chip and filled icon, "Go to bookmark" appeared); with the bookmark on ad 600 of the filtered list, Go to bookmark brought that row to the top of the list, selected (`docs/images/bookmark.png`); after deleting that ad from the copy and going to the bookmark from the Saved tab, the app switched to All ads and landed on the next ad, marked "You stopped near here".
+- Not verified live: Ctrl+B and Ctrl+G (synthetic keys can't reach a background test window), and the hover-only visibility of the row button (checked through UI Automation only).
+
 ## Next step
 
 Publish `v0.1.0` (tag on `main`, Release workflow), then run the manual M6 checks (sleep/resume, DPI change, tray menu). A later `v0.1.1` exercises the in-app update against GitHub end to end.

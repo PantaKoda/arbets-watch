@@ -19,6 +19,8 @@
     <KeyBinding Gesture="Escape" Command="{Binding ClosePanelsCommand}" />
     <KeyBinding Gesture="Ctrl+D" Command="{Binding OpenDetailsCommand}" />
     <KeyBinding Gesture="Ctrl+S" Command="{Binding ToggleSaveCommand}" />
+    <KeyBinding Gesture="Ctrl+B" Command="{Binding ToggleBookmarkCommand}" />
+    <KeyBinding Gesture="Ctrl+G" Command="{Binding GoToBookmarkCommand}" />
   </Window.KeyBindings>
 
   <!--
@@ -84,7 +86,16 @@
           </Panel>
 
           <!-- Tabs: the filtered list, or every saved ad. -->
-          <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="4" Margin="12,0,12,8">
+          <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" Margin="12,0,12,8">
+            <Button Grid.Column="1" Classes="link" Command="{Binding GoToBookmarkCommand}" IsVisible="{Binding HasBookmark}"
+                    VerticalAlignment="Center" ToolTip.Tip="Jump to the ad where you stopped (Ctrl+G)"
+                    AutomationProperties.Name="Go to bookmark">
+              <StackPanel Orientation="Horizontal" Spacing="5">
+                <PathIcon Data="{StaticResource IconBookmark}" Width="10" Height="10" />
+                <TextBlock Text="Go to bookmark" />
+              </StackPanel>
+            </Button>
+          <StackPanel Orientation="Horizontal" Spacing="4">
             <Button Classes="tab" Classes.selected="{Binding !IsSavedView}" Command="{Binding ShowAllAdsCommand}"
                     ToolTip.Tip="The ads in your places and worktime" AutomationProperties.Name="All ads">
               <TextBlock Text="All ads" />
@@ -98,6 +109,7 @@
               </StackPanel>
             </Button>
           </StackPanel>
+          </Grid>
 
           <!-- Filter bar: places and worktime. -->
           <Grid DockPanel.Dock="Top" Classes="filterbar" IsVisible="{Binding !IsSavedView}" ColumnDefinitions="*,Auto,Auto,Auto" ColumnSpacing="6" Margin="12,0,12,8">
@@ -248,6 +260,13 @@
                             <Border Classes="chip" Classes.fulltime="{Binding IsFullTime}" Classes.parttime="{Binding IsPartTime}">
                               <TextBlock Text="{Binding Worktime}" />
                             </Border>
+                            <Border Classes="chip mark" IsVisible="{Binding HasBookmarkMark}"
+                                    ToolTip.Tip="Your bookmark: where you stopped reading the list">
+                              <StackPanel Orientation="Horizontal" Spacing="4">
+                                <PathIcon Data="{StaticResource IconBookmark}" Width="8" Height="9" VerticalAlignment="Center" />
+                                <TextBlock Text="{Binding BookmarkText}" />
+                              </StackPanel>
+                            </Border>
                             <Border Classes="chip" IsVisible="{Binding IsGone}">
                               <TextBlock Text="No longer listed here" />
                             </Border>
@@ -261,6 +280,16 @@
                           <TextBlock Classes="secondary" Text="{Binding PublishedText}" HorizontalAlignment="Right"
                                      ToolTip.Tip="Published (Swedish time)" />
                           <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="2">
+                            <Button Classes="icon rowlink mark" Classes.set="{Binding IsBookmark}"
+                                    Command="{Binding $parent[ListBox].((vm:MainViewModel)DataContext).ToggleBookmarkCommand}"
+                                    CommandParameter="{Binding}" Focusable="False"
+                                    IsVisible="{Binding !$parent[ListBox].((vm:MainViewModel)DataContext).IsSavedView}"
+                                    ToolTip.Tip="{Binding BookmarkTip}" AutomationProperties.Name="{Binding BookmarkName}">
+                              <Panel>
+                                <PathIcon Data="{StaticResource IconBookmarkOutline}" IsVisible="{Binding !IsBookmark}" />
+                                <PathIcon Data="{StaticResource IconBookmark}" IsVisible="{Binding IsBookmark}" />
+                              </Panel>
+                            </Button>
                             <Button Classes="icon rowlink star" Classes.saved="{Binding IsSaved}"
                                     Command="{Binding $parent[ListBox].((vm:MainViewModel)DataContext).ToggleSaveCommand}"
                                     CommandParameter="{Binding}" Focusable="False"
@@ -399,7 +428,7 @@
                       <TextBlock Classes="secondary" TextWrapping="Wrap"
                                  Text="Show ad titles in English with your own free DeepL key. Only the titles on screen are sent, translations stay in memory, and the key is stored encrypted for your Windows account (never in the database, logs or the project folder)." />
                       <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8" IsVisible="{Binding CanStoreKey}">
-                        <TextBox Text="{Binding DeepLKeyInput}" PasswordChar="●" Watermark="Paste your DeepL API key"
+                        <TextBox Text="{Binding DeepLKeyInput}" PasswordChar="●" PlaceholderText="Paste your DeepL API key"
                                  AutomationProperties.Name="DeepL API key" MaxLength="100" />
                         <Button Grid.Column="1" Content="Save key" Command="{Binding SaveDeepLKeyCommand}" IsEnabled="{Binding !IsCheckingKey}" />
                       </Grid>

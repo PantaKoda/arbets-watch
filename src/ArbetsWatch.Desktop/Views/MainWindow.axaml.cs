@@ -24,6 +24,7 @@ public sealed partial class MainWindow : Window
             if (ViewModel is { } vm)
             {
                 vm.ScrollToTopRequested += (_, _) => Dispatcher.UIThread.Post(() => _listScroll?.ScrollToHome());
+                vm.ScrollToRowRequested += (_, row) => Dispatcher.UIThread.Post(() => ScrollRowToTop(row));
                 vm.PropertyChanged += (_, e) =>
                 {
                     if (e.PropertyName == nameof(MainViewModel.IsPlacesOpen) && vm.IsPlacesOpen)
@@ -36,6 +37,22 @@ public sealed partial class MainWindow : Window
     }
 
     private MainViewModel? ViewModel => DataContext as MainViewModel;
+
+    /// <summary>Brings a row into view at the top of the list: reading continues downward from a bookmark.</summary>
+    private void ScrollRowToTop(AdRowViewModel row)
+    {
+        AdList.ScrollIntoView(row);
+
+        // The row exists only after the virtualized list has laid it out; then move it from wherever it landed.
+        Dispatcher.UIThread.Post(() =>
+        {
+            if (_listScroll is { } scroll && AdList.ContainerFromItem(row) is { } container &&
+                container.TranslatePoint(default, scroll) is { } position)
+            {
+                scroll.Offset = new Vector(scroll.Offset.X, Math.Max(0, scroll.Offset.Y + position.Y - 6));
+            }
+        }, DispatcherPriority.Background);
+    }
 
     private void AttachScroll()
     {
