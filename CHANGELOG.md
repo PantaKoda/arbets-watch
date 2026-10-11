@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [0.1.6] - 2026-10-11
 
 - Bookmark: mark the ad where you stop reading. Point at a row and click the bookmark icon (or press Ctrl+B on the selected ad); the row shows "You stopped here". **Go to bookmark** at the top right (Ctrl+G) jumps straight back to it, also from the Saved tab. There is one bookmark; setting it on another ad moves it, and clicking it again removes it. If the bookmarked ad has been taken down or your filters hide it, you land on the next ad after that point, marked "You stopped near here". The bookmark is kept between restarts.
 
