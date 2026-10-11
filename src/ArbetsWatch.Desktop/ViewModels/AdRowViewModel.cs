@@ -52,6 +52,27 @@ public sealed partial class AdRowViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(SaveTip), nameof(SaveName), nameof(AccessibleName))]
     public partial bool IsSaved { get; set; }
 
+    /// <summary>The user's bookmark is on this ad ("You stopped here").</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasBookmarkMark), nameof(BookmarkText), nameof(BookmarkTip), nameof(BookmarkName))]
+    public partial bool IsBookmark { get; set; }
+
+    /// <summary>The bookmarked ad is not in this list; this is the nearest ad after it.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasBookmarkMark), nameof(BookmarkText))]
+    public partial bool IsBookmarkNear { get; set; }
+
+    public bool HasBookmarkMark => IsBookmark || IsBookmarkNear;
+
+    public string BookmarkText => IsBookmark ? "You stopped here" : "You stopped near here";
+
+    public string BookmarkTip => IsBookmark ? "Remove the bookmark (Ctrl+B)" : "Bookmark: I stopped here (Ctrl+B)";
+
+    public string BookmarkName => IsBookmark ? $"Remove the bookmark from {Title}" : $"Bookmark {Title}";
+
+    /// <summary>Publication time; with the ID it is the ad's place in the list order.</summary>
+    public DateTimeOffset? PublishedUtc { get; private set; }
+
     /// <summary>False for a saved ad that Platsbanken no longer publishes.</summary>
     [ObservableProperty]
     public partial bool IsPublished { get; set; } = true;
@@ -97,6 +118,7 @@ public sealed partial class AdRowViewModel : ObservableObject
         TitleTip = translated ? $"Original: {OriginalTitle}\n{OpenTip}" : OpenTip;
         OnPropertyChanged(nameof(AccessibleName));
         OnPropertyChanged(nameof(SaveName));
+        OnPropertyChanged(nameof(BookmarkName));
     }
 
     public Uri? Url { get; private set; }
@@ -126,6 +148,7 @@ public sealed partial class AdRowViewModel : ObservableObject
         IsFullTime = category == WorktimeSet.FullTime;
         IsPartTime = category == WorktimeSet.PartTime;
         PublishedText = DisplayText.Published(ad.PublishedUtc, now);
+        PublishedUtc = ad.PublishedUtc;
         Unread = row.Unread;
         IsSaved = row.IsSaved;
         IsPublished = row.IsPublished;

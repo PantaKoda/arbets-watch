@@ -161,6 +161,9 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     /// <summary>Raised when the list should scroll to the top (after showing held-back updates).</summary>
     public event EventHandler? ScrollToTopRequested;
 
+    /// <summary>Raised when the list should bring one row into view (going to the bookmark).</summary>
+    public event EventHandler<AdRowViewModel>? ScrollToRowRequested;
+
     public PlacePickerViewModel Places { get; }
 
     public ObservableCollection<AdRowViewModel> Rows { get; private set; } = [];
@@ -259,6 +262,12 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(SavedTabText))]
     public partial int SavedCount { get; set; }
+
+    // ---- Bookmark ---------------------------------------------------------------------------------------
+
+    /// <summary>A bookmark is set, so "Go to bookmark" is offered.</summary>
+    [ObservableProperty]
+    public partial bool HasBookmark { get; set; }
 
     public string SavedTabText => SavedCount > 0 ? string.Create(CultureInfo.CurrentCulture, $"Saved ({SavedCount:N0})") : "Saved";
 
@@ -490,6 +499,72 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
         IsSavedView = saved;
         return ReloadAsync(ReloadReason.ViewChanged);
+    }
+
+    /// <summary>
+    /// Puts the bookmark on an ad ("I stopped here"), or removes it when that ad already has it. There is one
+    /// bookmark; setting it elsewhere moves it.
+    /// </summary>
+    [RelayCommand]
+    private void ToggleBookmark(AdRowViewModel? row)
+    {
+        row ??= SelectedRow;
+        if (row is null || IsSavedView)
+        {
+            return;
+        }
+
+        var bookmark = row.IsBookmark ? null : new ReadingBookmark(row.Id, row.PublishedUtc);
+        UpdatePreferences(_preferences with { Bookmark = bookmark });
+        MarkBookmark();
+    }
+
+    /// <summary>Selects and scrolls to the bookmarked ad, or the nearest one after it when it is not in the list.</summary>
+    [RelayCommand]
+    private async Task GoToBookmarkAsync()
+    {
+        if (_preferences.Bookmark is null)
+        {
+            return;
+        }
+
+        IsPlacesOpen = false;
+        IsSettingsOpen = false;
+        if (IsSavedView)
+        {
+            await SwitchViewAsync(saved: false).ConfigureAwait(true);
+        }
+
+        if (HasHeldUpdates)
+        {
+            await ReloadAsync(ReloadReason.ViewChanged).ConfigureAwait(true);
+        }
+
+        if (MarkBookmark() is { } row)
+        {
+            SelectedRow = row;
+            ScrollToRowRequested?.Invoke(this, row);
+        }
+        else
+        {
+            ShowNotice("There are no ads in this list to go to.");
+        }
+    }
+
+    /// <summary>Shows the bookmark on its row (or the nearest one) and returns that row.</summary>
+    private AdRowViewModel? MarkBookmark()
+    {
+        var bookmark = _preferences.Bookmark;
+        HasBookmark = bookmark is not null;
+        var position = IsSavedView ? null : bookmark?.Locate(Rows, r => r.Id, r => r.PublishedUtc);
+        var marked = position is null ? null : Rows[position.Index];
+        foreach (var row in Rows)
+        {
+            row.IsBookmark = ReferenceEquals(row, marked) && position!.Exact;
+            row.IsBookmarkNear = ReferenceEquals(row, marked) && !position!.Exact;
+        }
+
+        return marked;
     }
 
     /// <summary>Stars or un-stars an ad. On the Saved tab an un-starred ad leaves the list at once.</summary>
@@ -860,6 +935,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         SelectedRow = selected is not null && existing.ContainsKey(selected.Id) && list.Contains(selected) ? selected : null;
         UnreadCount = list.Count(r => r.Unread);
         CountText = IsSavedView ? SavedCountText(list.Count) : DisplayText.AdCount(list.Count);
+
+        MarkBookmark();
 
         if (flashing.Count > 0)
         {
