@@ -34,6 +34,16 @@ The ZIP is self-contained (the .NET runtime is included) and needs no administra
 - **Updates:** ArbetsWatch checks this repository's releases daily. When there is a newer one, an **UPDATE** button appears in the header; it shows what changed and installs it after checking the published SHA-256 (your data is kept; the previous version stays next to the app folder). Details: [docs/updates.md](docs/updates.md).
 - **Remove:** quit, delete the app folder and `%LOCALAPPDATA%\ArbetsWatch` (database, preferences, logs).
 
+## Web version (local only)
+
+`src/ArbetsWatch.Web` is the same monitor in a browser. It runs on your own PC and listens on `127.0.0.1` only; it is not hosted anywhere.
+
+```powershell
+dotnet run --project src/ArbetsWatch.Web --configuration Release
+```
+
+Then open <http://localhost:5317>. The first start downloads all current ads, like the desktop app does, into its own folder (`%LOCALAPPDATA%\ArbetsWatch\web`). Your filters, saved ads, bookmark and read marks stay in the browser; the server has no accounts and stores nothing about you. How it is built, what is protected and what must change before it could be hosted: [docs/web.md](docs/web.md).
+
 ## Build
 
 Requires the .NET 10 SDK.
@@ -42,6 +52,7 @@ Requires the .NET 10 SDK.
 dotnet restore ArbetsWatch.slnx --locked-mode
 dotnet build ArbetsWatch.slnx --configuration Release --no-restore
 dotnet test ArbetsWatch.slnx --configuration Release --no-build --no-restore
+node --test "tests/web/*.test.mjs"
 ```
 
 ## Repository layout
@@ -50,7 +61,9 @@ dotnet test ArbetsWatch.slnx --configuration Release --no-build --no-restore
 |---|---|
 | `src/ArbetsWatch.Core` | Models, matching rules, synchronization, HTTP adapters, SQLite persistence, bundled geography. No UI dependency. |
 | `src/ArbetsWatch.Desktop` | Avalonia views, view models, tray and window integration. |
+| `src/ArbetsWatch.Web` | Local web version: read-only API over Core, plus a dependency-free frontend in `wwwroot`. |
 | `tests/ArbetsWatch.Core.Tests` | Deterministic unit and SQLite tests with sanitized fixtures. |
+| `tests/ArbetsWatch.Web.Tests`, `tests/web` | Server security and API tests on a real loopback socket; frontend rules under Node's test runner. |
 | `tools/TaxonomyExport` | Regenerates `src/ArbetsWatch.Core/Places/places.json` from the Taxonomy API. |
 | `docs/api-contracts.md` | Verified API behavior and open questions. |
 | `docs/progress.md` | Milestone status and validation evidence. |

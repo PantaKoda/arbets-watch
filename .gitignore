@@ -22,3 +22,6 @@ deepl-key.bin
 *.key
 .env
 .env.*
+*.pem
+*.pfx
+launchSettings.json

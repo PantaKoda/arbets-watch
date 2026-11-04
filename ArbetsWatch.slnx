@@ -2,9 +2,11 @@
   <Folder Name="/src/">
     <Project Path="src/ArbetsWatch.Core/ArbetsWatch.Core.csproj" />
     <Project Path="src/ArbetsWatch.Desktop/ArbetsWatch.Desktop.csproj" />
+    <Project Path="src/ArbetsWatch.Web/ArbetsWatch.Web.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/ArbetsWatch.Core.Tests/ArbetsWatch.Core.Tests.csproj" />
+    <Project Path="tests/ArbetsWatch.Web.Tests/ArbetsWatch.Web.Tests.csproj" />
   </Folder>
   <Folder Name="/tools/">
     <Project Path="tools/TaxonomyExport/TaxonomyExport.csproj" />

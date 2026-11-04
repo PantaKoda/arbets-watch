@@ -29,6 +29,6 @@ public static partial class AdLinkPolicy
         url.AbsolutePath.StartsWith(AdPathPrefix, StringComparison.Ordinal) &&
         NumericId().IsMatch(url.AbsolutePath[AdPathPrefix.Length..].TrimEnd('/'));
 
-    [GeneratedRegex("^[0-9]{1,15}$")]
+    [GeneratedRegex(@"^[0-9]{1,15}\z")]
     private static partial Regex NumericId();
 }

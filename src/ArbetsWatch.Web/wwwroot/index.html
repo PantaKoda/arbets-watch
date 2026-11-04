@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <meta name="robots" content="noindex">
+  <title>ArbetsWatch</title>
+  <link rel="icon" href="/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/app.css">
+  <script src="/js/theme.js"></script>
+  <script type="module" src="/js/app.js"></script>
+</head>
+<body>
+  <main class="shell">
+    <header class="top">
+      <div class="brand"><span class="diamond" aria-hidden="true"></span><h1>ARBETSWATCH</h1></div>
+      <div class="status" id="status" data-kind="running" role="status"><span class="dot" aria-hidden="true"></span><span id="status-text">Connecting…</span></div>
+      <div class="top-actions">
+        <button type="button" class="chip" id="english" aria-pressed="false" title="Show ad titles in English" hidden>EN</button>
+        <button type="button" class="icon" id="refresh" title="Reload from the server's cache" aria-label="Refresh">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 6.3M20 5v6h-6"/></svg>
+        </button>
+        <button type="button" class="icon" id="settings-open" title="Settings" aria-label="Settings">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1"/></svg>
+        </button>
+      </div>
+    </header>
+
+    <div id="filters" class="filters">
+      <div class="filter-row">
+        <button type="button" class="place-button" id="places-open" title="Choose places (l)">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s7-6.2 7-11.5A7 7 0 0 0 5 9.5C5 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.4"/></svg>
+          <span id="place-summary">All of Sweden</span>
+        </button>
+        <div class="chips" role="group" aria-label="Worktime">
+          <button type="button" class="chip" data-worktime="full" aria-pressed="true">Heltid</button>
+          <button type="button" class="chip" data-worktime="part" aria-pressed="true">Deltid</button>
+          <button type="button" class="chip" data-worktime="none" aria-pressed="true">Ej angiven</button>
+        </div>
+      </div>
+      <div class="search">
+        <input id="search" type="search" maxlength="200" placeholder="Search titles and descriptions (/)" aria-label="Search titles and descriptions" autocomplete="off" spellcheck="false">
+        <button type="button" class="icon small" id="search-clear" aria-label="Clear search" hidden>×</button>
+      </div>
+    </div>
+
+    <div class="tabs">
+      <div role="tablist" class="tab-group">
+        <button type="button" role="tab" id="tab-all" aria-selected="true">All ads</button>
+        <button type="button" role="tab" id="tab-saved" aria-selected="false">Saved</button>
+      </div>
+      <button type="button" class="link-button" id="go-bookmark" hidden>Go to bookmark</button>
+    </div>
+
+    <p id="notice" class="notice" role="alert" hidden></p>
+    <p id="bookmark-banner" class="notice" hidden><span id="bookmark-text"></span> <button type="button" class="link-button" id="bookmark-back">Back to newest</button></p>
+    <button type="button" id="updates" class="updates" hidden>New ads are ready. Show them</button>
+
+    <div id="list" class="list" tabindex="-1">
+      <p id="empty" class="empty" hidden></p>
+      <ol id="rows" class="rows"></ol>
+    </div>
+
+    <footer class="bottom">
+      <span id="count"></span>
+      <button type="button" class="link-button" id="mark-all" hidden></button>
+    </footer>
+  </main>
+
+  <template id="row-template">
+    <li class="row">
+      <div class="row-main">
+        <span class="unread-dot" aria-hidden="true"></span>
+        <h2 class="title"></h2>
+        <p class="employer"></p>
+        <p class="meta">
+          <span class="place"></span>
+          <span class="worktime"></span>
+          <span class="tag gold chip-bookmark" hidden>You stopped here</span>
+          <span class="tag warn chip-gone" hidden>No longer published</span>
+        </p>
+      </div>
+      <div class="row-side">
+        <time class="when"></time>
+        <div class="row-actions">
+          <button type="button" class="icon small star" aria-label="Save this ad" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5l2.6 5.4 5.9.8-4.3 4.1 1 5.9-5.2-2.8-5.2 2.8 1-5.9-4.3-4.1 5.9-.8z"/></svg></button>
+          <button type="button" class="icon small mark" aria-label="Bookmark: I stopped reading here" title="I stopped reading here" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3.5h10v17l-5-3.6-5 3.6z"/></svg></button>
+          <button type="button" class="icon small info" aria-label="Ad details" title="Details"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 11v5.5M12 7.5v.5"/></svg></button>
+          <a class="icon small open" target="_blank" rel="noopener noreferrer" aria-label="Open on Platsbanken" title="Open on Platsbanken"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 4h6v6M20 4l-9 9M18 14v6H4V6h6"/></svg></a>
+        </div>
+      </div>
+    </li>
+  </template>
+
+  <dialog id="places" class="panel" aria-labelledby="places-title">
+    <header class="panel-head"><h2 id="places-title">Places</h2><button type="button" class="icon small" data-close aria-label="Close">×</button></header>
+    <input id="place-search" type="search" placeholder="Find a län or kommun" aria-label="Find a län or kommun" autocomplete="off" spellcheck="false">
+    <label class="all-sweden"><input type="checkbox" id="place-all"><span>All of Sweden</span></label>
+    <div id="place-tree" class="place-tree"></div>
+  </dialog>
+
+  <dialog id="settings" class="panel" aria-labelledby="settings-title">
+    <header class="panel-head"><h2 id="settings-title">Settings</h2><button type="button" class="icon small" data-close aria-label="Close">×</button></header>
+    <section>
+      <h3>Appearance</h3>
+      <label class="field"><span>Theme</span>
+        <select id="setting-theme"><option value="system">System</option><option value="light">Light</option><option value="dark">Dark</option></select>
+      </label>
+      <label class="field"><span>Accent</span>
+        <select id="setting-accent"><option value="cyan">Station cyan</option><option value="violet">Nebula violet</option><option value="blue">Ion blue</option><option value="magenta">Plasma magenta</option></select>
+      </label>
+    </section>
+    <section>
+      <h3>English titles</h3>
+      <p class="muted small" id="translation-note"></p>
+    </section>
+    <section>
+      <h3>Your data</h3>
+      <p class="muted small">Your filters, saved ads, bookmark and read marks are kept only in this browser. The server has no accounts and stores nothing about you.</p>
+      <button type="button" class="button" id="clear-data">Remove my data from this browser</button>
+    </section>
+    <section>
+      <h3>Keys</h3>
+      <p class="muted small">/ search · j/k or arrows move · Enter open · d details · s save · b bookmark · g go to bookmark · l places · Esc close</p>
+    </section>
+  </dialog>
+
+  <dialog id="details" class="panel wide" aria-labelledby="details-title">
+    <header class="panel-head">
+      <div><h2 id="details-title"></h2><p class="muted small" id="details-subtitle"></p></div>
+      <button type="button" class="icon small" data-close aria-label="Close">×</button>
+    </header>
+    <div id="details-body" class="details-body"></div>
+  </dialog>
+</body>
+</html>

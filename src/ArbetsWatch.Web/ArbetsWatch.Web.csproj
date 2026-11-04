@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <RootNamespace>ArbetsWatch.Web</RootNamespace>
+    <AssemblyName>ArbetsWatch.Web</AssemblyName>
+    <!-- wwwroot is served from next to the binary in every configuration; there is no development-only asset path. -->
+    <StaticWebAssetsEnabled>false</StaticWebAssetsEnabled>
+    <!-- No appsettings or user secrets: the only secret comes from the process environment (docs/web.md). -->
+    <UserSecretsId></UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\ArbetsWatch.Core\ArbetsWatch.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Update="wwwroot\**" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <InternalsVisibleTo Include="ArbetsWatch.Web.Tests" />
+  </ItemGroup>
+</Project>

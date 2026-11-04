@@ -44,7 +44,7 @@ public static partial class ExternalLinks
             : null;
     }
 
-    /// <summary>A plain e-mail address, or null.</summary>
+    /// <summary>A plain e-mail address, or null. "?", "=", "&amp;" and "%" are refused: in a mailto link they could add a hidden Bcc or body.</summary>
     public static string? Email(string? text) =>
         text?.Trim() is { Length: > 0 and <= 254 } value && EmailPattern().IsMatch(value) ? value : null;
 
@@ -54,6 +54,6 @@ public static partial class ExternalLinks
             ? $"mailto:{email}?subject={Uri.EscapeDataString(subject)}"
             : $"mailto:{email}");
 
-    [GeneratedRegex(@"^[^@\s<>()\[\]\\,;:""]+@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)+$")]
+    [GeneratedRegex(@"^[\p{L}\p{N}.!#$+_'-]+@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)+\z")]
     private static partial Regex EmailPattern();
 }

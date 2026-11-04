@@ -19,6 +19,12 @@ public sealed record AdRow(AdSummary Ad, bool Unread, DateTimeOffset FirstSeenUt
     public bool IsPublished { get; init; } = true;
 }
 
+/// <summary>A position in the ad list's order: publication time, then ID.</summary>
+public sealed record AdCursor(DateTimeOffset? PublishedUtc, string Id);
+
+/// <summary>An ad's ID and when this monitor first saw it.</summary>
+public sealed record FirstSeenAd(string Id, DateTimeOffset FirstSeenUtc);
+
 /// <summary>What one committed batch or snapshot changed.</summary>
 public sealed record ApplyResult(int Applied, int Stale, int NewUnread, int Removed, int Expired, int Absent, int Pruned)
 {
