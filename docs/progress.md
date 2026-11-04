@@ -244,6 +244,30 @@ dotnet test → 272 passed (8 new in ReadingBookmarkTests: exact match, missing 
 - Live on copies of the real database in a separate data folder: bookmarked a visible row (chip and filled icon, "Go to bookmark" appeared); with the bookmark on ad 600 of the filtered list, Go to bookmark brought that row to the top of the list, selected (`docs/images/bookmark.png`); after deleting that ad from the copy and going to the bookmark from the Saved tab, the app switched to All ads and landed on the next ad, marked "You stopped near here".
 - Not verified live: Ctrl+B and Ctrl+G (synthetic keys can't reach a background test window), and the hover-only visibility of the row button (checked through UI Automation only).
 
+## Web version (branch feat/web-app, not hosted)
+
+A local web port, requested by the user on 2026-11-04: security first, no leaks of secrets or sensitive data, not hosted yet. Design, security table and the before-hosting list are in `docs/web.md`.
+
+- `src/ArbetsWatch.Web`: ASP.NET Core server over Core's unchanged sync and cache, loopback only, read-only JSON API, no accounts or cookies. Frontend in `wwwroot` as plain ES modules with no npm packages (Astro was allowed but not needed). Filters, read marks, saved ads and the bookmark live in `localStorage`.
+- Core: `AdStore` gains `QueryPageAsync` (keyset paging), `CountMatchingAsync`, `QueryFirstSeenSinceAsync` and `FilterPublishedAsync`. No schema change.
+- Shared with the desktop app: e-mail addresses are stricter (no mailto parameters; a rare address with other characters is now shown as text only), and ad IDs refuse a trailing newline.
+- An independent review of the first version found that `/API/...` bypassed the case-sensitive cross-site guard, and that environment variables could put the server on `0.0.0.0`. Both were reproduced on real processes, then fixed and retested. It also found read-state races and a mailto parameter hole, fixed too.
+
+Validation on Windows 11:
+
+```text
+dotnet restore --locked-mode → ok; dotnet build --no-restore → 0 warnings, 0 errors
+dotnet test → Core 282 passed (10 new in AdPagingTests), Web 98 passed (security and API tests on a real loopback socket)
+node --test "tests/web/*.test.mjs" → 31 passed
+dotnet format --verify-no-changes → clean; scripts/check-secrets.ps1 → passed
+```
+
+- Live, with a scratch data folder and the real JobStream: first snapshot 40,168 ads in about 90 s, database 179 MB. List page 28 KB in 70 ms, full-text search 0.7 s on All Sweden. A real 5-minute poll ran and the open page followed it (that interval had no new ads).
+- In the built-in browser (Chromium), on real data: filter to Göteborg + Mölndal + all Halland, part-time; worktime chips; search and its empty state; star; bookmark and jump back; details fetched live from JobSearch; Saved tab; paging by scrolling; mark shown as read; theme, accent and phone width; restart keeps state; server stopped shows "Server not reachable" and keeps the rows.
+- A hostile ad planted in the scratch database (markup in title and employer, `javascript:` URL) showed as plain text with the canonical link, and nothing ran. CSP and Trusted Types blocked `innerHTML`, inline script, string timers and external fetch and images in the page. The `eval` probe came back allowed, most likely because the debugger bypasses CSP for its own evaluation, so `eval` remains unverified in the browser.
+- On real processes: only `127.0.0.1:<port>` listens, with `ASPNETCORE_URLS`, `ASPNETCORE_PREFERHOSTINGURLS`, `Kestrel__Endpoints__*`, `ASPNETCORE_ENVIRONMENT=Development`, or `appsettings.json` beside the binary; a search word stays out of the log at `Logging__LogLevel__Microsoft.AspNetCore=Trace`; a foreign Host gets 400, no or cross-site header 403 in either path case, a preflight and POST 405; the network address is unreachable; a second copy exits with code 3 before syncing.
+- Not verified: a real DeepL round trip (no key; translation ran against a stub); a genuinely new ad arriving live (marks were simulated by moving the watch position back, and tested with fixtures); Firefox and Safari; the JobStream-offline state in the page (server reachable, upstream not); CI on GitHub, including the new Node step, which hasn't run.
+
 ## Next step
 
 Publish `v0.1.0` (tag on `main`, Release workflow), then run the manual M6 checks (sleep/resume, DPI change, tray menu). A later `v0.1.1` exercises the in-app update against GitHub end to end.

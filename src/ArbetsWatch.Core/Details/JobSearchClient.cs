@@ -72,6 +72,6 @@ public sealed partial class JobSearchClient(HttpClient http) : IAdDetailsSource
         }
     }
 
-    [GeneratedRegex("^[0-9]{1,15}$")]
+    [GeneratedRegex(@"^[0-9]{1,15}\z")]
     private static partial Regex NumericId();
 }

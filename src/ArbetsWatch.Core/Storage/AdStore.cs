@@ -410,6 +410,167 @@ public sealed class AdStore : IDisposable
                 ("$now", Ms(now))), System.Globalization.CultureInfo.InvariantCulture);
         }, cancellationToken);
 
+    /// <summary>
+    /// One page of <see cref="QueryAsync"/>, in the same order. Keyset paging: ads arriving between two pages neither
+    /// repeat nor skip a row. <paramref name="after"/> is the last row of the previous page; with
+    /// <paramref name="inclusive"/> the page starts at that position instead (a bookmark).
+    /// </summary>
+    public Task<IReadOnlyList<AdRow>> QueryPageAsync(
+        AdFilter filter,
+        DateTimeOffset now,
+        int limit,
+        AdCursor? after = null,
+        bool inclusive = false,
+        TextSearch? search = null,
+        CancellationToken cancellationToken = default) =>
+        Task.Run<IReadOnlyList<AdRow>>(() =>
+        {
+            search ??= TextSearch.None;
+            using var connection = Connect();
+            using var command = connection.CreateCommand();
+            var where = AdFilterSql.Where(filter, command, "s");
+            var join = search.IsEmpty ? string.Empty : " JOIN ad_text t ON t.id = s.id";
+            var text = search.IsEmpty ? string.Empty : $" AND {search.Where(command, "t.body")}";
+
+            // Rows without a publication time sort last, as they do in the descending index.
+            var position = string.Empty;
+            if (after is not null)
+            {
+                var idCompare = inclusive ? "<=" : "<";
+                position = after.PublishedUtc is null
+                    ? $" AND s.published_utc IS NULL AND s.id {idCompare} $afterId"
+                    : $" AND (s.published_utc < $afterPublished OR (s.published_utc = $afterPublished AND s.id {idCompare} $afterId) OR s.published_utc IS NULL)";
+                command.Parameters.AddWithValue("$afterId", after.Id);
+                if (after.PublishedUtc is { } published)
+                {
+                    command.Parameters.AddWithValue("$afterPublished", Ms(published));
+                }
+            }
+
+            command.CommandText = $"""
+                SELECT {Prefixed("s")}, st.first_seen_utc
+                FROM ad_summary s JOIN ad_state st ON st.id = s.id{join}
+                WHERE ({where}) AND (s.last_publication_utc IS NULL OR s.last_publication_utc >= $now){text}{position}
+                ORDER BY s.published_utc DESC, s.id DESC
+                LIMIT $limit
+                """;
+            command.Parameters.AddWithValue("$now", Ms(now));
+            command.Parameters.AddWithValue("$limit", limit);
+
+            var rows = new List<AdRow>(limit);
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                rows.Add(new AdRow(ReadSummary(reader), false, reader.IsDBNull(16) ? now : FromMs(reader.GetInt64(16))));
+            }
+
+            return rows;
+        }, cancellationToken);
+
+    /// <summary>How many current ads match the filter and <paramref name="search"/>.</summary>
+    public Task<int> CountMatchingAsync(
+        AdFilter filter,
+        DateTimeOffset now,
+        TextSearch? search = null,
+        CancellationToken cancellationToken = default) =>
+        Task.Run(() =>
+        {
+            search ??= TextSearch.None;
+            using var connection = Connect();
+            using var command = connection.CreateCommand();
+            var where = AdFilterSql.Where(filter, command, "s");
+            var join = search.IsEmpty ? string.Empty : " JOIN ad_text t ON t.id = s.id";
+            var text = search.IsEmpty ? string.Empty : $" AND {search.Where(command, "t.body")}";
+            command.CommandText = $"""
+                SELECT COUNT(*)
+                FROM ad_summary s{join}
+                WHERE ({where}) AND (s.last_publication_utc IS NULL OR s.last_publication_utc >= $now){text}
+                """;
+            command.Parameters.AddWithValue("$now", Ms(now));
+            return Convert.ToInt32(command.ExecuteScalar(), System.Globalization.CultureInfo.InvariantCulture);
+        }, cancellationToken);
+
+    /// <summary>
+    /// Current matching ads first seen at or after <paramref name="sinceUtc"/>, oldest sighting first, at most
+    /// <paramref name="limit"/>. Lets a client that keeps its own read state find what is new to it.
+    /// </summary>
+    public Task<IReadOnlyList<FirstSeenAd>> QueryFirstSeenSinceAsync(
+        AdFilter filter,
+        DateTimeOffset now,
+        DateTimeOffset sinceUtc,
+        int limit,
+        TextSearch? search = null,
+        CancellationToken cancellationToken = default) =>
+        Task.Run<IReadOnlyList<FirstSeenAd>>(() =>
+        {
+            search ??= TextSearch.None;
+            using var connection = Connect();
+            using var command = connection.CreateCommand();
+            var where = AdFilterSql.Where(filter, command, "s");
+            var join = search.IsEmpty ? string.Empty : " JOIN ad_text t ON t.id = s.id";
+            var text = search.IsEmpty ? string.Empty : $" AND {search.Where(command, "t.body")}";
+            command.CommandText = $"""
+                SELECT s.id, st.first_seen_utc
+                FROM ad_summary s JOIN ad_state st ON st.id = s.id{join}
+                WHERE ({where}) AND st.first_seen_utc >= $since
+                  AND (s.last_publication_utc IS NULL OR s.last_publication_utc >= $now){text}
+                ORDER BY st.first_seen_utc, s.id
+                LIMIT $limit
+                """;
+            command.Parameters.AddWithValue("$since", Ms(sinceUtc));
+            command.Parameters.AddWithValue("$now", Ms(now));
+            command.Parameters.AddWithValue("$limit", limit);
+
+            var ads = new List<FirstSeenAd>();
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                ads.Add(new FirstSeenAd(reader.GetString(0), FromMs(reader.GetInt64(1))));
+            }
+
+            return ads;
+        }, cancellationToken);
+
+    /// <summary>Which of <paramref name="ids"/> are currently published.</summary>
+    public Task<IReadOnlyList<string>> FilterPublishedAsync(
+        IReadOnlyCollection<string> ids,
+        DateTimeOffset now,
+        CancellationToken cancellationToken = default) =>
+        Task.Run<IReadOnlyList<string>>(() =>
+        {
+            if (ids.Count == 0)
+            {
+                return [];
+            }
+
+            using var connection = Connect();
+            using var command = connection.CreateCommand();
+            var names = new List<string>(ids.Count);
+            foreach (var id in ids)
+            {
+                var name = string.Create(System.Globalization.CultureInfo.InvariantCulture, $"$id{names.Count}");
+                command.Parameters.AddWithValue(name, id);
+                names.Add(name);
+            }
+
+            command.CommandText = $"""
+                SELECT id FROM ad_summary
+                WHERE id IN ({string.Join(", ", names)}) AND (last_publication_utc IS NULL OR last_publication_utc >= $now)
+                """;
+            command.Parameters.AddWithValue("$now", Ms(now));
+
+            var published = new List<string>();
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+            {
+                published.Add(reader.GetString(0));
+            }
+
+            return published;
+        }, cancellationToken);
+
     // ---- Saved ads --------------------------------------------------------------------------------------
 
     /// <summary>
